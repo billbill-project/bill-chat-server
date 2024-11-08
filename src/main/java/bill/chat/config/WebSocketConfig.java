@@ -1,0 +1,30 @@
+package bill.chat.config;
+
+import bill.chat.handler.MyWebSocketHandler;
+import java.util.HashMap;
+import java.util.Map;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
+import org.springframework.web.reactive.socket.WebSocketHandler;
+
+@Configuration
+public class WebSocketConfig {
+
+    @Bean
+    public SimpleUrlHandlerMapping handlerMapping(MyWebSocketHandler myHandler) {
+        Map<String, WebSocketHandler> map = new HashMap<>();
+        map.put("/ws/greeting", myHandler);
+
+        SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
+        mapping.setUrlMap(map);
+        mapping.setOrder(1);
+
+        return mapping;
+    }
+
+    @Bean
+    public MyWebSocketHandler myWebSocketHandler() {
+        return new MyWebSocketHandler();
+    }
+}
