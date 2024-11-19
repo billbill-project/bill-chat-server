@@ -1,6 +1,6 @@
-package bill.chat.domain;
+package bill.chat.model;
 
-import bill.chat.domain.common.BaseEntity;
+import bill.chat.model.common.BaseEntity;
 import java.time.OffsetDateTime;
 import java.util.List;
 import nonapi.io.github.classgraph.json.Id;

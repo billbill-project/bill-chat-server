@@ -1,4 +1,4 @@
-package bill.chat.domain.common;
+package bill.chat.model.common;
 
 import java.time.OffsetDateTime;
 import lombok.Getter;

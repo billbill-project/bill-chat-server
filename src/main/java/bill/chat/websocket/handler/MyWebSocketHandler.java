@@ -1,4 +1,4 @@
-package bill.chat.handler;
+package bill.chat.websocket.handler;
 
 import java.util.List;
 import org.springframework.web.reactive.socket.WebSocketHandler;

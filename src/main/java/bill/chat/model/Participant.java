@@ -1,4 +1,4 @@
-package bill.chat.domain;
+package bill.chat.model;
 
 import java.time.OffsetDateTime;
 

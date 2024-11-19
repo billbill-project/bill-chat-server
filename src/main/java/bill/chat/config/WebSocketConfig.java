@@ -1,6 +1,6 @@
 package bill.chat.config;
 
-import bill.chat.handler.MyWebSocketHandler;
+import bill.chat.websocket.handler.MyWebSocketHandler;
 import java.util.HashMap;
 import java.util.Map;
 import org.springframework.context.annotation.Bean;
