@@ -1,7 +1,7 @@
 package bill.chat.websocket.payload.code;
 
 import bill.chat.websocket.payload.dto.WebSocketFailureDTO;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 
@@ -20,7 +20,7 @@ public enum WebSocketErrorStatus {
         return WebSocketFailureDTO.builder()
                 .errorCode(code)
                 .errorMessage(message)
-                .timestamp(OffsetDateTime.now())
+                .timestamp(LocalDateTime.now())
                 .build();
     }
 }

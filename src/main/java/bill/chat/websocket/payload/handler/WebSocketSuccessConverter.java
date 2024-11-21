@@ -1,15 +1,17 @@
 package bill.chat.websocket.payload.handler;
 
+import bill.chat.model.dto.ChatDTO;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 
 public class WebSocketSuccessConverter {
-    public WebSocketSuccessDTO toSuccessDTO(String messageType, int chatRoomId, int senderId, String content, OffsetDateTime time) {
+    public WebSocketSuccessDTO toSuccessDTO(ChatDTO chatDTO, LocalDateTime time) {
         return WebSocketSuccessDTO.builder()
-                .messageType(messageType)
-                .chatRoomId(chatRoomId)
-                .senderId(senderId)
-                .content(content)
+                .messageType(chatDTO.getMessageType())
+                .channelId(chatDTO.getChannelId())
+                .systemType(chatDTO.getSystemType())
+                .senderId(chatDTO.getSenderId())
+                .content(chatDTO.getContent())
                 .createdAt(time)
                 .build();
     }

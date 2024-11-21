@@ -1,6 +1,6 @@
 package bill.chat.websocket.payload.dto;
 
-import java.time.OffsetDateTime;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
@@ -10,5 +10,5 @@ public class WebSocketFailureDTO {
     private final String messageType = "ERROR";
     private final String errorCode;
     private final String errorMessage;
-    private final OffsetDateTime timestamp;
+    private final LocalDateTime timestamp;
 }

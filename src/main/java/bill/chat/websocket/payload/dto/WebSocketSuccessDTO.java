@@ -1,15 +1,18 @@
 package bill.chat.websocket.payload.dto;
 
-import java.time.OffsetDateTime;
+import bill.chat.model.enums.MessageType;
+import bill.chat.model.enums.SystemType;
+import java.time.LocalDateTime;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
 public class WebSocketSuccessDTO {
-    private final String messageType;
-    private final int chatRoomId;
-    private final int senderId;
+    private final MessageType messageType;
+    private final String channelId;
+    private SystemType systemType;
+    private final String senderId;
     private final String content;
-    private final OffsetDateTime createdAt;
+    private final LocalDateTime createdAt;
 }
