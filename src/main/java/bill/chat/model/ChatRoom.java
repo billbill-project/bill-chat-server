@@ -28,4 +28,8 @@ public class ChatRoom extends BaseEntity {
     public void addChatMessage(ChatMessage chatMessage) {
         chat.add(chatMessage);
     }
+
+    public void resetUnreadCount() {
+        unreadCount = 0;
+    }
 }

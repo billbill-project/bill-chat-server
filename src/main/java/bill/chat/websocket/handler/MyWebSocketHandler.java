@@ -58,9 +58,10 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .then(Mono.defer(() -> {
                     sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
-                    return session.receive()
-                            .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
-                            .then()
+                    return processRead(channelId, userId)
+                            .then(session.receive()
+                                    .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
+                                    .then())
                             .doFinally(signalType -> {
                                 log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
                                 sessions.getOrDefault(channelId, List.of()).remove(session);
@@ -79,8 +80,29 @@ public class MyWebSocketHandler implements WebSocketHandler {
         return chatRoomRepository.findByChannelId(channelId)
                 .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
                 .flatMap(chatRoom -> chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
-                                .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
-                                .then();
+                        .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
+                .then();
+    }
+    //TODO : system 메세지 상대방이 나갔을 때 -> 채팅방 상태 업데이트
+
+    private Mono<Void> processRead(String channelId, String userId) {
+        return chatRoomRepository.findByChannelId(channelId)
+                .flatMap(chatRoom -> chatRoomRepository.findLastChatMessageByChannelId(channelId)
+                        .flatMap(containLastChatRoom -> {
+                            //안읽은 채팅을 보낸 사람이 현재 세션의 주인이 아니면 -> read 처리 필요
+                            if (!containLastChatRoom.getChat().isEmpty()) {
+                                if (!containLastChatRoom.getChat().get(0).isRead() && !userId.equals(
+                                        containLastChatRoom.getChat().get(0).getSenderId())) {
+                                    chatRoom.resetUnreadCount();
+                                    chatRoom.getChat().forEach(ChatMessage::changeRead);
+
+                                    return chatRoomRepository.save(chatRoom);
+                                }
+                                return Mono.empty();
+                            }
+                            return Mono.empty();
+                        }))
+                .then();
     }
 
     private Mono<Void> handleMessage(WebSocketSession session, String channelId, String payload) {
@@ -97,7 +119,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> processChatMessage(String channelId, ChatDTO chatDTO, WebSocketSession senderSession) {
-        return chatRoomRepository.findById(channelId)
+        return chatRoomRepository.findByChannelId(channelId)
                 .doOnNext(chatRoom -> log.info("채팅방 조회 성공: {}", channelId))
 
                 .flatMap(chatRoom -> chatRoomRepository.findLastChatMessageByChannelId(channelId)
@@ -107,10 +129,6 @@ public class MyWebSocketHandler implements WebSocketHandler {
                             boolean isImage = false;
                             boolean isSystem = false;
                             boolean isRead = true;
-
-                            // 안읽은 메세지 있는지 확인하고 처리하는거 구현 예정
-                            //
-                            //
 
                             // 두 명 이상이 session 가지면 읽은 걸로 간주
                             if (sessions.get(channelId).size() < 2) {

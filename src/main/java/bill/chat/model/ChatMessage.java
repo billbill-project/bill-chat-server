@@ -16,4 +16,10 @@ public class ChatMessage {
     private boolean isImage;
     private boolean isSystem;
     private boolean isRead;
+
+    public void changeRead() {
+        if (!isRead) {
+            isRead = true;
+        }
+    }
 }
