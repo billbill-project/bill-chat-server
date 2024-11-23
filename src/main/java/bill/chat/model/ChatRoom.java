@@ -32,4 +32,28 @@ public class ChatRoom extends BaseEntity {
     public void resetUnreadCount() {
         unreadCount = 0;
     }
+
+    public void processLeftUser(String senderId) {
+        isClosed = true;
+        participants.forEach(participant -> {
+            if (participant.getUserId().equals(senderId)) {
+                participant.updateLeft();
+            }
+        });
+    }
+
+    public void checkAndUpdateDelete() {
+        boolean allLeft = true;
+
+        for (Participant participant : participants) {
+            if (!participant.isLeft()) {
+                allLeft = false;
+                break;
+            }
+        }
+
+        if (allLeft) {
+            isDeleted = true;
+        }
+    }
 }

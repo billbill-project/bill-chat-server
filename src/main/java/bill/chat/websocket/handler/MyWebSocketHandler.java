@@ -2,6 +2,7 @@ package bill.chat.websocket.handler;
 
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
+import static bill.chat.websocket.payload.code.WebSocketErrorStatus.DELETED_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
@@ -79,11 +80,20 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private Mono<Void> validChannelAndUser(String channelId, String userId) {
         return chatRoomRepository.findByChannelId(channelId)
                 .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
-                .flatMap(chatRoom -> chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
-                        .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
+                .flatMap(chatRoom -> {
+                    if (chatRoom.isClosed()) {
+                        return Mono.error(new WebSocketException(DELETED_CHANNEL));
+                    }
+
+                    if (chatRoom.isDeleted()) {
+                        return Mono.error(new WebSocketException(DELETED_CHANNEL));
+                    }
+
+                    return chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
+                            .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER)));
+                })
                 .then();
     }
-    //TODO : system 메세지 상대방이 나갔을 때 -> 채팅방 상태 업데이트
 
     private Mono<Void> processRead(String channelId, String userId) {
         return chatRoomRepository.findByChannelId(channelId)
@@ -141,6 +151,11 @@ public class MyWebSocketHandler implements WebSocketHandler {
                             }
                             if (chatDTO.getMessageType() == SYSTEM) {
                                 isSystem = true;
+                                //TODO : system 메세지 상대방이 나갔을 때 -> 채팅방 상태 업데이트
+//                                if (chatDTO.getSystemType() == USER_LEFT) {
+//                                    chatRoom.processLeftUser(chatDTO.getSenderId());
+//                                    chatRoom.checkAndUpdateDelete();
+//                                }
                             }
                             int seq = 0;
                             if (!lastChatRoom.getChat().isEmpty()) {
