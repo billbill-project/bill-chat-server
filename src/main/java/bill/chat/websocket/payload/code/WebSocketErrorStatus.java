@@ -9,7 +9,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum WebSocketErrorStatus {
     INVALID_MESSAGE_FORMAT("ws4001", "메세지 형식이 잘못되었습니다."),
-    INVALID_MESSAGE_TYPE("ws4002", "지원하지 않는 메세지 타입입니다."),
+    UNKNOWN_CHANNEL("ws4002", "존재하지 않는 채팅방입니다."),
+    UNKNOWN_USER("ws4003", "채팅방에 참여할 수 없는 유저입니다."),
 
     UNKNOWN_ERROR("ws5001", "알 수 없는 오류가 발생했습니다.");
 

@@ -3,6 +3,8 @@ package bill.chat.websocket.handler;
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
+import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
+import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
 
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.model.ChatMessage;
@@ -49,21 +51,36 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
-
         String channelId = getChannelId(session);
         String userId = getUserId(session);
 
-        sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
+        return validChannelAndUser(channelId, userId)
+                .then(Mono.defer(() -> {
+                    sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
-        Mono<Void> input = session.receive()
-                .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
-                .doFinally(signalType -> {
-                    log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
-                    sessions.getOrDefault(channelId, List.of()).remove(session);
-                })
-                .then();
+                    return session.receive()
+                            .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
+                            .then()
+                            .doFinally(signalType -> {
+                                log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
+                                sessions.getOrDefault(channelId, List.of()).remove(session);
+                            });
+                }))
+                .onErrorResume(e -> {
+                    // validUser에서 발생한 예외 처리
+                    if (e instanceof WebSocketException) {
+                        return responseHandler.handleError(session, (WebSocketException) e);
+                    }
+                    return Mono.empty();
+                });
+    }
 
-        return input;
+    private Mono<Void> validChannelAndUser(String channelId, String userId) {
+        return chatRoomRepository.findByChannelId(channelId)
+                .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
+                .flatMap(chatRoom -> chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
+                                .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
+                                .then();
     }
 
     private Mono<Void> handleMessage(WebSocketSession session, String channelId, String payload) {
