@@ -1,6 +1,6 @@
 package bill.chat.websocket.payload.handler;
 
-import bill.chat.model.dto.ChatDTO;
+import bill.chat.dto.ChatDTO;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
 import java.time.LocalDateTime;
 

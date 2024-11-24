@@ -9,7 +9,8 @@ import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER
 
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.model.ChatMessage;
-import bill.chat.model.dto.ChatDTO;
+import bill.chat.dto.ChatDTO;
+import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
 import bill.chat.websocket.payload.exception.WebSocketException;
@@ -17,7 +18,6 @@ import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
 import bill.chat.websocket.payload.handler.WebSocketSuccessConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,12 +37,15 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final WebSocketResponseHandler responseHandler;
     private final ObjectMapper objectMapper;
     private final ChatRoomRepository chatRoomRepository;
+    private final ChatMessageRepository chatMessageRepository;
 
     @Autowired
-    public MyWebSocketHandler(ChatRoomRepository chatRoomRepository, ObjectMapper objectMapper) {
+    public MyWebSocketHandler(ChatRoomRepository chatRoomRepository, ObjectMapper objectMapper,
+                              ChatMessageRepository chatMessageRepository) {
         this.chatRoomRepository = chatRoomRepository;
         this.objectMapper = objectMapper;
         this.responseHandler = new WebSocketResponseHandler(objectMapper);
+        this.chatMessageRepository = chatMessageRepository;
     }
 
     @Override
@@ -81,11 +84,11 @@ public class MyWebSocketHandler implements WebSocketHandler {
         return chatRoomRepository.findByChannelId(channelId)
                 .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
                 .flatMap(chatRoom -> {
-                    if (chatRoom.isClosed()) {
+                    if (chatRoom.getIsClosed()) {
                         return Mono.error(new WebSocketException(DELETED_CHANNEL));
                     }
 
-                    if (chatRoom.isDeleted()) {
+                    if (chatRoom.getIsDeleted()) {
                         return Mono.error(new WebSocketException(DELETED_CHANNEL));
                     }
 
@@ -96,23 +99,23 @@ public class MyWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> processRead(String channelId, String userId) {
-        return chatRoomRepository.findByChannelId(channelId)
-                .flatMap(chatRoom -> chatRoomRepository.findLastChatMessageByChannelId(channelId)
-                        .flatMap(containLastChatRoom -> {
-                            //안읽은 채팅을 보낸 사람이 현재 세션의 주인이 아니면 -> read 처리 필요
-                            if (!containLastChatRoom.getChat().isEmpty()) {
-                                if (!containLastChatRoom.getChat().get(0).isRead() && !userId.equals(
-                                        containLastChatRoom.getChat().get(0).getSenderId())) {
-                                    chatRoom.resetUnreadCount();
-                                    chatRoom.getChat().forEach(ChatMessage::changeRead);
+        Mono<Long> unreadMessagesCount = chatMessageRepository.findUnreadMessages(channelId, userId)
+                .flatMap(chatMessage -> {
+                    chatMessage.changeRead();
+                    return chatMessageRepository.save(chatMessage);
+                })
+                .count();
 
-                                    return chatRoomRepository.save(chatRoom);
-                                }
-                                return Mono.empty();
-                            }
-                            return Mono.empty();
-                        }))
-                .then();
+        return unreadMessagesCount.flatMap(count -> {
+            if (count > 0) {
+                return chatRoomRepository.findByChannelId(channelId)
+                        .flatMap(chatRoom -> {
+                            chatRoom.resetUnreadCount();
+                            return chatRoomRepository.save(chatRoom).then();
+                        });
+            }
+            return Mono.empty();
+        });
     }
 
     private Mono<Void> handleMessage(WebSocketSession session, String channelId, String payload) {
@@ -157,25 +160,18 @@ public class MyWebSocketHandler implements WebSocketHandler {
 //                                    chatRoom.checkAndUpdateDelete();
 //                                }
                             }
-                            int seq = 0;
-                            if (!lastChatRoom.getChat().isEmpty()) {
-                                seq = lastChatRoom.getChat().get(0).getSeq() + 1;
-                            }
-                            log.info("next seq : {}", seq);
                             String senderId = chatDTO.getSenderId();
                             String content = chatDTO.getContent();
-                            ChatMessage chatMessage = ChatMessageConverter.toChatMessage(seq, senderId, content,
+                            ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, content,
                                     isImage, isSystem, isRead);
 
-                            chatRoom.addChatMessage(chatMessage);
-
-                            // 저장 후 브로드캐스트
                             return chatRoomRepository.save(chatRoom)
-                                    .then(broadcastMessage(channelId, chatDTO));
+                                    .then(chatMessageRepository.save(chatMessage))
+                                    .flatMap(savedChat -> broadcastMessage(channelId, chatDTO, savedChat));
                         }));
     }
 
-    private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO) {
+    private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO, ChatMessage savedChat) {
         log.info("broadcastMessage 진입");
         List<WebSocketSession> chatRoomSessions = sessions.getOrDefault(chatRoomId, List.of());
         log.info("chatRoomSessions : {}", chatRoomSessions);
@@ -188,7 +184,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
         // WebSocketSuccessDTO 변환
         WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
                 chatDTO,
-                LocalDateTime.now()
+                savedChat.getCreatedAt()
         );
         log.info("WebSocketSuccessDTO 생성 : {}", successDTO.getChannelId());
         // 각 세션에 성공 메시지 브로드캐스트

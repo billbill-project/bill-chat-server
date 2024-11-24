@@ -15,19 +15,27 @@ public class ChatRoom extends BaseEntity {
 
     private String channelId;
     private List<Participant> participants;
-    private List<ChatMessage> chat;
+//    private List<ChatMessage> chat;
     private int unreadCount;
     private boolean isClosed;
     private boolean isDeleted;
     private LocalDateTime deletedAt; // 채팅방 삭제 시간
 
+    public boolean getIsClosed() {
+        return isClosed;
+    }
+
+    public boolean getIsDeleted() {
+        return isDeleted;
+    }
+
     public void addUnreadCount() {
         unreadCount += 1;
     }
 
-    public void addChatMessage(ChatMessage chatMessage) {
-        chat.add(chatMessage);
-    }
+//    public void addChatMessage(ChatMessage chatMessage) {
+//        chat.add(chatMessage);
+//    }
 
     public void resetUnreadCount() {
         unreadCount = 0;

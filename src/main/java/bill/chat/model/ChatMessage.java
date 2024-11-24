@@ -1,16 +1,19 @@
 package bill.chat.model;
 
-import java.time.LocalDateTime;
+import bill.chat.model.common.BaseEntity;
 import lombok.Builder;
 import lombok.Getter;
+import nonapi.io.github.classgraph.json.Id;
+import org.springframework.data.mongodb.core.mapping.Document;
 
 @Getter
 @Builder
-public class ChatMessage {
-    @Builder.Default
-    private final LocalDateTime createdAt = LocalDateTime.now();
+@Document(collection = "chat_messages")
+public class ChatMessage extends BaseEntity {
+    @Id
+    private String id;
 
-    private int seq;
+    private String channelId;
     private String senderId;
     private String content;
     private boolean isImage;
@@ -18,8 +21,6 @@ public class ChatMessage {
     private boolean isRead;
 
     public void changeRead() {
-        if (!isRead) {
-            isRead = true;
-        }
+        isRead = true;
     }
 }
