@@ -1,5 +1,5 @@
 package bill.chat.model.enums;
 
 public enum SystemType {
-    RENTAL_CONFIRMATION
+    RESERVATION_REQUEST, RENTAL_CONFIRMATION
 }
