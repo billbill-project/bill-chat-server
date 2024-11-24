@@ -2,6 +2,7 @@ package bill.chat.websocket.handler;
 
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
+import static bill.chat.websocket.payload.code.WebSocketErrorStatus.CLOSED_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.DELETED_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
@@ -82,7 +83,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
                 .flatMap(chatRoom -> {
                     if (chatRoom.isClosed()) {
-                        return Mono.error(new WebSocketException(DELETED_CHANNEL));
+                        return Mono.error(new WebSocketException(CLOSED_CHANNEL));
                     }
 
                     if (chatRoom.isDeleted()) {
