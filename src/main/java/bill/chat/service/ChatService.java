@@ -36,15 +36,6 @@ public class ChatService {
         return chatRoomRepository.findByChannelId(channelId);
     }
 
-    public Mono<Void> processChatRoomLeave(String channelId, String userId) {
-        return chatRoomRepository.findByChannelId(channelId)
-                .flatMap(chatRoom -> {
-                    chatRoom.processLeftUser(userId);
-                    chatRoom.checkAndUpdateDelete();
-                    return chatRoomRepository.save(chatRoom);
-                })
-                .then();
-    }
 
 //    public Mono<List<Object>> getChatMessageAndInfo(String channelId) {
 //        return chatRoomRepository.findByChannelId(channelId)

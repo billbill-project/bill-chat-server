@@ -3,12 +3,10 @@ package bill.chat.controller;
 import bill.chat.apiPayload.ApiResponse;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO;
-import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -27,14 +25,6 @@ public class ChatController {
         return chatService.getChatMessages(channelId, beforeTimestamp)
                 .map(ChatMessageConverter::toGetChatMessage)
                 .map(ApiResponse::onSuccess);
-    }
-
-    @PostMapping("/leave")
-    public Mono<ApiResponse<Void>> chatRoomLeave(@RequestParam String channelId) {
-        String userId = "user2";
-        return chatService.processChatRoomLeave(channelId, userId)
-                .then(Mono.just(ApiResponse.onSuccess(null)));
-
     }
 
 //    @GetMapping("/info")

@@ -2,7 +2,6 @@ package bill.chat.websocket.handler;
 
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
-import static bill.chat.websocket.payload.code.WebSocketErrorStatus.DELETED_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
@@ -58,7 +57,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
         String channelId = getChannelId(session);
         String userId = getUserId(session);
 
-        return validChannelAndUser(channelId, userId)
+        return validUser(channelId, userId)
                 .then(Mono.defer(() -> {
                     sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
@@ -80,21 +79,11 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 });
     }
 
-    private Mono<Void> validChannelAndUser(String channelId, String userId) {
+    private Mono<Void> validUser(String channelId, String userId) {
         return chatRoomRepository.findByChannelId(channelId)
                 .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
-                .flatMap(chatRoom -> {
-                    if (chatRoom.getIsClosed()) {
-                        return Mono.error(new WebSocketException(DELETED_CHANNEL));
-                    }
-
-                    if (chatRoom.getIsDeleted()) {
-                        return Mono.error(new WebSocketException(DELETED_CHANNEL));
-                    }
-
-                    return chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
-                            .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER)));
-                })
+                .flatMap(chatRoom -> chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
+                        .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
                 .then();
     }
 
@@ -135,40 +124,37 @@ public class MyWebSocketHandler implements WebSocketHandler {
         return chatRoomRepository.findByChannelId(channelId)
                 .doOnNext(chatRoom -> log.info("채팅방 조회 성공: {}", channelId))
 
-                .flatMap(chatRoom -> chatRoomRepository.findLastChatMessageByChannelId(channelId)
-                        .flatMap(lastChatRoom -> {
-                            log.info("메시지 처리 시작...");
-                            // 메시지 생성
-                            boolean isImage = false;
-                            boolean isSystem = false;
-                            boolean isRead = true;
+                .flatMap(chatRoom -> {
+                    log.info("메시지 처리 시작...");
+                    // 메시지 생성
+                    boolean isImage = false;
+                    boolean isSystem = false;
+                    boolean isRead = true;
+                    String lastContent = chatDTO.getContent();
 
-                            // 두 명 이상이 session 가지면 읽은 걸로 간주
-                            if (sessions.get(channelId).size() < 2) {
-                                isRead = false;
-                                chatRoom.addUnreadCount();
+                    // 두 명 이상이 session 가지면 읽은 걸로 간주
+                    if (sessions.get(channelId).size() < 2) {
+                        isRead = false;
+                        chatRoom.addUnreadCount();
 
-                            }
-                            if (chatDTO.getMessageType() == IMAGE) {
-                                isImage = true;
-                            }
-                            if (chatDTO.getMessageType() == SYSTEM) {
-                                isSystem = true;
-                                //TODO : system 메세지 상대방이 나갔을 때 -> 채팅방 상태 업데이트
-//                                if (chatDTO.getSystemType() == USER_LEFT) {
-//                                    chatRoom.processLeftUser(chatDTO.getSenderId());
-//                                    chatRoom.checkAndUpdateDelete();
-//                                }
-                            }
-                            String senderId = chatDTO.getSenderId();
-                            String content = chatDTO.getContent();
-                            ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, content,
-                                    isImage, isSystem, isRead);
+                    }
+                    if (chatDTO.getMessageType() == IMAGE) {
+                        isImage = true;
+                        lastContent = "사진";
+                    }
+                    if (chatDTO.getMessageType() == SYSTEM) {
+                        isSystem = true;
+                    }
+                    chatRoom.updateSender(chatDTO.getSenderId());
+                    chatRoom.updateLastMessage(lastContent);
+                    String senderId = chatDTO.getSenderId();
+                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent,
+                            isImage, isSystem, isRead);
 
-                            return chatRoomRepository.save(chatRoom)
-                                    .then(chatMessageRepository.save(chatMessage))
-                                    .flatMap(savedChat -> broadcastMessage(channelId, chatDTO, savedChat));
-                        }));
+                    return chatRoomRepository.save(chatRoom)
+                            .then(chatMessageRepository.save(chatMessage))
+                            .flatMap(savedChat -> broadcastMessage(channelId, chatDTO, savedChat));
+                });
     }
 
     private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO, ChatMessage savedChat) {
