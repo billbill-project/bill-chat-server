@@ -6,7 +6,6 @@ import lombok.Getter;
 @Builder
 @Getter
 public class Participant {
-
     private String userId;
-    private String role;
+    private String role; //owner, contact
 }

@@ -1,5 +1,7 @@
 package bill.chat.service;
 
+import bill.chat.converter.ChatRoomConverter;
+import bill.chat.dto.WebhookPayload.CreateChatRoom;
 import bill.chat.model.ChatMessage;
 import bill.chat.model.ChatRoom;
 import bill.chat.repository.ChatMessageRepository;
@@ -32,21 +34,9 @@ public class ChatService {
         return chatMessageRepository.findMessagesByChannelIdBeforeTimestamp(channelId, beforeTimestamp, size);
     }
 
-    public Mono<ChatRoom> getChatRoom(String channelId) {
-        return chatRoomRepository.findByChannelId(channelId);
+    @Transactional
+    public Mono<Void> createChatRoom(CreateChatRoom payload) {
+        ChatRoom chatRoom = ChatRoomConverter.toChatRoom(payload);
+        return chatRoomRepository.save(chatRoom).then();
     }
-
-
-//    public Mono<List<Object>> getChatMessageAndInfo(String channelId) {
-//        return chatRoomRepository.findByChannelId(channelId)
-//                .map(chatRoom -> {
-//                    List<Object> chatRoomInfo = new ArrayList<>();
-//                    chatRoomInfo.add(chatRoom.getChat());
-//                    chatRoomInfo.add(chatRoom.getChannelId());
-//                    chatRoomInfo.add(chatRoom.getParticipants());
-//                    chatRoomInfo.add(chatRoom.getIsClosed());
-//                    chatRoomInfo.add(chatRoom.getIsDeleted());
-//                    return chatRoomInfo;
-//                });
-//    }
 }

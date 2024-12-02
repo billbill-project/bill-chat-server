@@ -6,12 +6,10 @@ import bill.chat.dto.ChatMessageResponseDTO;
 import bill.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
-import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,10 +25,5 @@ public class ChatController {
                 .map(ApiResponse::onSuccess);
     }
 
-//    @GetMapping("/info")
-//    public Flux<ChatMessageResponseDTO.getChatMessage> getChatInfo(@RequestParam String channelId) {
-//        //jwt에서 뽑아서 userId 가져옴
-//        return chatService.getChatRoom(channelId)
-//                .map(ChatMessageConverter::toGetChatMessage);
-//    }
+    //TODO: api 서버에서 유효한 채팅방 list 받은다음에 여기서 페이징 후 전달?
 }
