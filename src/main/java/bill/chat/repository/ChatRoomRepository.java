@@ -8,8 +8,6 @@ import reactor.core.publisher.Mono;
 
 @Repository
 public interface ChatRoomRepository extends ReactiveMongoRepository<ChatRoom, String> {
-    @Query(value = "{'channelId': ?0}", fields = "{'chat': {$slice: -1}}")
-    Mono<ChatRoom> findLastChatMessageByChannelId(String chatRoomId);
 
     @Query("{ 'channelId': ?0, 'participants.userId': ?1 }")
     Mono<ChatRoom> findParticipantByChannelIdAndUserId(String channelId, String userId);

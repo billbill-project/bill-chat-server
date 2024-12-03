@@ -1,4 +1,4 @@
-package bill.chat.model.dto;
+package bill.chat.dto;
 
 import bill.chat.model.enums.MessageType;
 import bill.chat.model.enums.SystemType;
