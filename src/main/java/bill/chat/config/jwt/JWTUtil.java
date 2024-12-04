@@ -1,5 +1,6 @@
 package bill.chat.config.jwt;
 
+import bill.chat.model.enums.UserRole;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.ExpiredJwtException;
 import io.jsonwebtoken.JwtException;
@@ -23,7 +24,6 @@ public class JWTUtil {
 
     public static String MDC_USER_ID = "userId";
     public static String MDC_USER_ROLE = "role";
-
 
     public JWTUtil(
             @Value("${jwt.bill.secret-key}") String secretKey,
@@ -66,6 +66,12 @@ public class JWTUtil {
         MDC.put(MDC_USER_ROLE, role);
 
         return userId;
+    }
+
+    public UserRole getUserRole(String token) {
+        Claims claims = getClaims(token);
+        String role = claims.get("role", String.class);
+        return UserRole.valueOf(role);
     }
 
     public boolean isExpired(String token) {
