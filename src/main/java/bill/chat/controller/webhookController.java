@@ -1,6 +1,12 @@
 package bill.chat.controller;
 
-import bill.chat.dto.WebhookPayload;
+import bill.chat.converter.ChatMessageConverter;
+import bill.chat.converter.ChatRoomConverter;
+import bill.chat.dto.ChatMessageResponseDTO;
+import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
+import bill.chat.dto.ChatRoomResponseDTO;
+import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
+import bill.chat.dto.WebhookPayload.GetChatListPayload;
 import bill.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,10 +21,17 @@ import reactor.core.publisher.Mono;
 @RequestMapping("/webhook")
 public class webhookController {
     private final ChatService chatService;
-    //TODO: api 서버에서 채팅방 생성 시 여기서 chatRoom 생성
-    @PostMapping("")
-    public Mono<ResponseEntity<String>> createChatRoom(@RequestBody WebhookPayload.CreateChatRoom payload) {
+
+    @PostMapping("/channel")
+    public Mono<ResponseEntity<String>> createChatRoom(@RequestBody CreateChatRoomPayload payload) {
         return chatService.createChatRoom(payload)
                 .then(Mono.just(ResponseEntity.ok("success")));
+    }
+
+    @PostMapping("/chat/list")
+    public Mono<ChatRoomResponseDTO.getChatInfoList> getChatList(@RequestBody GetChatListPayload payload) {
+        return chatService.getChatList(payload)
+                .collectList()
+                .map(ChatRoomConverter::toGetChatInfoList);
     }
 }
