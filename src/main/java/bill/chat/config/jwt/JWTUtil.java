@@ -13,28 +13,19 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.SecretKey;
-import java.util.Date;
 
 @Slf4j
 @Component
 public class JWTUtil {
-    private final long ACCESS_TOKEN_EXPIRE_TIME;
-    private final long REFRESH_TOKEN_EXPIRE_TIME;
-    private final SecretKey key;
+    @Value("${jwt.secret-key}")
+    private String SECRET_KEY;
 
     public static String MDC_USER_ID = "userId";
     public static String MDC_USER_ROLE = "role";
 
-    public JWTUtil(
-            @Value("${jwt.bill.secret-key}") String secretKey,
-            @Value("${jwt.bill.access-token-expired}") long ACCESS_TOKEN_EXPIRE_TIME,
-            @Value("${jwt.bill.refresh-token-expired}") long REFRESH_TOKEN_EXPIRE_TIME
-    ) {
-        this.ACCESS_TOKEN_EXPIRE_TIME = ACCESS_TOKEN_EXPIRE_TIME;
-        this.REFRESH_TOKEN_EXPIRE_TIME = REFRESH_TOKEN_EXPIRE_TIME;
-
-        this.key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(secretKey));
-    }
+//    public JWTUtil(@Value("${jwt.secret-key}") String secretKey) {
+//        this.SECRET_KEY = secretKey;
+//    }
 
     public boolean isValidAccessToken(String token) {
         try {
@@ -51,6 +42,8 @@ public class JWTUtil {
     }
 
     public Claims getClaims(String token) {
+        SecretKey key = Keys.hmacShaKeyFor(Decoders.BASE64.decode(SECRET_KEY));
+
         return Jwts.parser()
                 .verifyWith(key)
                 .build()
