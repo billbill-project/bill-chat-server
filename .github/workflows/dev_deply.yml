@@ -57,7 +57,7 @@ jobs:
           key: ${{ secrets.EC2_PRIVATE_KEY}}
           script : |
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
-            if [ $(docker ps -a -q -f name=bill-api) ]; then
+            if [ $(docker ps -a -q -f name=bill-chat) ]; then
               sudo docker stop bill-chat
               sudo docker rm bill-chat
             fi
