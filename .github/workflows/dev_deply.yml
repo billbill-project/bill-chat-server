@@ -64,10 +64,14 @@ jobs:
             
             sudo docker tag jainefer/bill-chat:latest bill-chat
             sudo docker run --name bill-chat -d -p 80:8080 \
-              -e SPRING_DATASOURCE_URL=${{ secrets.SPRING_DATASOURCE_URL }} \
-              -e SPRING_DATASOURCE_USERNAME=${{ secrets.SPRING_DATASOURCE_USERNAME }} \
-              -e SPRING_DATASOURCE_PASSWORD=${{ secrets.SPRING_DATASOURCE_PASSWORD }} \
-              -e SPRING_DATASOURCE_DRIVER_CLASS_NAME=${{ secrets.SPRING_DATASOURCE_DRIVER_CLASS_NAME }} \
+              -e SPRING_DATA_MONGODB_URI=${{ secrets.SPRING_DATA_MONGODB_URI }} \
+              -e SPRING_DATA_MONGODB_DATABASE=${{ secrets.SPRING_DATA_MONGODB_DATABASE }} \
+              -e SPRINGDOC_PACKAGES_TO_SCAN=${{ secrets.SPRINGDOC_PACKAGES_TO_SCAN }} \
+              -e SPRINGDOC_SWAGGER_UI_PATH=${{ secrets.SPRINGDOC_SWAGGER_UI_PATH }} \
+              -e SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL=${{ secrets.SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL }} \
+              -e SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER=${{ secrets.SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER }} \
+              -e SPRINGDOC_API_DOCS_PATH=${{ secrets.SPRINGDOC_API_DOCS_PATH }} \
+              -e SPRINGDOC_CACHE_DISABLED=${{ secrets.SPRINGDOC_CACHE_DISABLED }} \
               ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
             sudo docker rm $(sudo docker ps --filter 'status=exited' -a -q)
             sudo docker image prune -a -f
