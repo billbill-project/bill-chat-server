@@ -71,7 +71,6 @@ jobs:
               -e SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL=${{ secrets.SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL }} \
               -e SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER=${{ secrets.SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER }} \
               -e SPRINGDOC_API_DOCS_PATH=${{ secrets.SPRINGDOC_API_DOCS_PATH }} \
-              -e SPRINGDOC_CACHE_DISABLED=${{ secrets.SPRINGDOC_CACHE_DISABLED }} \
               ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
             sudo docker rm $(sudo docker ps --filter 'status=exited' -a -q)
             sudo docker image prune -a -f
