@@ -1,5 +1,6 @@
 package bill.chat.config;
 
+import bill.chat.config.interceptor.BillChatInterceptor;
 import bill.chat.websocket.handler.MyWebSocketHandler;
 import java.util.HashMap;
 import java.util.Map;
@@ -14,10 +15,12 @@ import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAd
 public class WebSocketConfig {
 
     private final MyWebSocketHandler myWebSocketHandler;
+    private final BillChatInterceptor billChatInterceptor;
 
     // MyWebSocketHandler를 생성자 주입으로 받아옴
-    public WebSocketConfig(MyWebSocketHandler myWebSocketHandler) {
+    public WebSocketConfig(MyWebSocketHandler myWebSocketHandler, BillChatInterceptor billChatInterceptor) {
         this.myWebSocketHandler = myWebSocketHandler;
+        this.billChatInterceptor = billChatInterceptor;
     }
 
     @Bean
