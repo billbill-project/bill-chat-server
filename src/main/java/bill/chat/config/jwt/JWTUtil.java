@@ -23,10 +23,6 @@ public class JWTUtil {
     public static String MDC_USER_ID = "userId";
     public static String MDC_USER_ROLE = "role";
 
-//    public JWTUtil(@Value("${jwt.secret-key}") String secretKey) {
-//        this.SECRET_KEY = secretKey;
-//    }
-
     public boolean isValidAccessToken(String token) {
         try {
             if (getClaims(token).get("type").equals("AT")) return true;

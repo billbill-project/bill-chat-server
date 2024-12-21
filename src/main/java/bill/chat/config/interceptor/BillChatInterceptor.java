@@ -44,7 +44,7 @@ public class BillChatInterceptor implements ChannelInterceptor {
         String jwtToken = jwtTokenOptional
                 .filter(token -> token.startsWith(BEARER_))
                 .map(token -> token.substring(BEARER_.length()))
-                .filter(token -> !jwtUtil.isExpired(token))
+                .filter(jwtUtil::isValidAccessToken)
                 .orElseThrow(() -> new RuntimeException("Invalid token"));
 
         String userId = jwtUtil.putUserMDC(jwtUtil.getClaims(jwtToken));
