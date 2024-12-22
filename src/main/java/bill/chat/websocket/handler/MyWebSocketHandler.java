@@ -7,10 +7,14 @@ import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHAN
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
 
 import bill.chat.converter.ChatMessageConverter;
+import bill.chat.converter.SSEConverter;
+import bill.chat.dto.SSEDTO;
 import bill.chat.model.ChatMessage;
 import bill.chat.dto.ChatDTO;
+import bill.chat.model.Participant;
 import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
+import bill.chat.service.SSEManager;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
 import bill.chat.websocket.payload.exception.WebSocketException;
 import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
@@ -28,6 +32,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks.Many;
 
 @Slf4j
 @Component
@@ -37,14 +42,16 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final ObjectMapper objectMapper;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
+    private final SSEManager sseManager;
 
     @Autowired
     public MyWebSocketHandler(ChatRoomRepository chatRoomRepository, ObjectMapper objectMapper,
-                              ChatMessageRepository chatMessageRepository) {
+                              ChatMessageRepository chatMessageRepository, SSEManager sseManager) {
         this.chatRoomRepository = chatRoomRepository;
         this.objectMapper = objectMapper;
         this.responseHandler = new WebSocketResponseHandler(objectMapper);
         this.chatMessageRepository = chatMessageRepository;
+        this.sseManager = sseManager;
     }
 
     @Override
@@ -152,6 +159,16 @@ public class MyWebSocketHandler implements WebSocketHandler {
                             isImage, isSystem, isRead);
 
                     return chatRoomRepository.save(chatRoom)
+                            .doOnSuccess(updatedChatRoom -> {
+                                List<Participant> participants = chatRoom.getParticipants();
+                                for (Participant participant : participants) {
+                                    // 메세지 보낸 사람 아닌 상대방의 sink 존재 확인
+                                    if (!participant.getUserId().equals(senderId) && sseManager.doesSinkExist(participant.getUserId())) {
+                                        SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom);
+                                        sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
+                                    }
+                                }
+                            })
                             .then(chatMessageRepository.save(chatMessage))
                             .flatMap(savedChat -> broadcastMessage(channelId, chatDTO, savedChat));
                 });

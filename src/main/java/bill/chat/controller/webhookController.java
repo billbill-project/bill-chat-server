@@ -1,9 +1,6 @@
 package bill.chat.controller;
 
-import bill.chat.converter.ChatMessageConverter;
 import bill.chat.converter.ChatRoomConverter;
-import bill.chat.dto.ChatMessageResponseDTO;
-import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.dto.ChatRoomResponseDTO;
 import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
 import bill.chat.dto.WebhookPayload.GetChatListPayload;
