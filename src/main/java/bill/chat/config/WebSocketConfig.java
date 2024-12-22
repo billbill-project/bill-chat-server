@@ -2,8 +2,10 @@ package bill.chat.config;
 
 import bill.chat.config.interceptor.BillChatInterceptor;
 import bill.chat.websocket.handler.MyWebSocketHandler;
+
 import java.util.HashMap;
 import java.util.Map;
+
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.ChannelRegistration;

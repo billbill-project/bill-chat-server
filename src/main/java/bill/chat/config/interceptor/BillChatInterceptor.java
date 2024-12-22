@@ -36,22 +36,26 @@ public class BillChatInterceptor implements ChannelInterceptor {
     public Message<?> preSend(Message<?> message, MessageChannel channel) {
         StompHeaderAccessor accessor = MessageHeaderAccessor.getAccessor(message, StompHeaderAccessor.class);
 
-        if (!StompCommand.CONNECT.equals(accessor.getCommand())) {
-            return message;
+        if (StompCommand.CONNECT.equals(accessor.getCommand())) {
+            String destination = accessor.getDestination();
+            if (destination != null && destination.startsWith("/webhook/")) {
+                log.info("Skipping JWT validation for path: {}", destination);
+                return message; // `/webhook/` 경로는 인증 제외
+            }
+
+            Optional<String> jwtTokenOptional = Optional.ofNullable(accessor.getFirstNativeHeader(AUTHORIZATION));
+            String jwtToken = jwtTokenOptional
+                    .filter(token -> token.startsWith(BEARER_))
+                    .map(token -> token.substring(BEARER_.length()))
+                    .filter(jwtUtil::isValidAccessToken)
+                    .orElseThrow(() -> new RuntimeException("Invalid token"));
+
+            String userId = jwtUtil.putUserMDC(jwtUtil.getClaims(jwtToken));
+            String userRole = jwtUtil.getUserRole(jwtToken).name();
+
+            Authentication authentication = createAuthentication(userId, userRole);
+            accessor.setUser(authentication);
         }
-
-        Optional<String> jwtTokenOptional = Optional.ofNullable(accessor.getFirstNativeHeader(AUTHORIZATION));
-        String jwtToken = jwtTokenOptional
-                .filter(token -> token.startsWith(BEARER_))
-                .map(token -> token.substring(BEARER_.length()))
-                .filter(jwtUtil::isValidAccessToken)
-                .orElseThrow(() -> new RuntimeException("Invalid token"));
-
-        String userId = jwtUtil.putUserMDC(jwtUtil.getClaims(jwtToken));
-        String userRole = jwtUtil.getUserRole(jwtToken).name();
-
-        Authentication authentication = createAuthentication(userId, userRole);
-        accessor.setUser(authentication);
 
         return message;
     }
