@@ -1,18 +1,17 @@
 package bill.chat.controller;
 
 import bill.chat.apiPayload.ApiResponse;
+import bill.chat.config.jwt.JWTUtil;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO;
 import bill.chat.dto.SSEDTO;
 import bill.chat.service.ChatService;
 import bill.chat.service.SSEManager;
-import java.time.Duration;
-import java.time.LocalDateTime;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -34,8 +33,9 @@ public class ChatController {
                 .map(ApiResponse::onSuccess);
     }
 
-    @GetMapping(value = "/list/SSE/{userId}", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<SSEDTO> subscribeSSE(@PathVariable(value = "userId") String userId) {
+    @GetMapping(value = "/list/SSE", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<SSEDTO> subscribeSSE() {
+        String userId = MDC.get(JWTUtil.MDC_USER_ID).toString();
         if (sseManager.doesSinkExist(userId)) {
             log.warn("이미 구독 중인 사용자: {}", userId);
             return Flux.error(new IllegalStateException("이미 구독 중인 사용자입니다."));

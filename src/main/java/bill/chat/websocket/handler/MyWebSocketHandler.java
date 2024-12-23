@@ -21,21 +21,23 @@ import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
 import bill.chat.websocket.payload.handler.WebSocketSuccessConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.stream.Collectors;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks.Many;
 
 @Slf4j
 @Component
+@RequiredArgsConstructor
 public class MyWebSocketHandler implements WebSocketHandler {
     private final Map<String, List<WebSocketSession>> sessions = new ConcurrentHashMap<>();
     private final WebSocketResponseHandler responseHandler;
@@ -43,16 +45,6 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SSEManager sseManager;
-
-    @Autowired
-    public MyWebSocketHandler(ChatRoomRepository chatRoomRepository, ObjectMapper objectMapper,
-                              ChatMessageRepository chatMessageRepository, SSEManager sseManager) {
-        this.chatRoomRepository = chatRoomRepository;
-        this.objectMapper = objectMapper;
-        this.responseHandler = new WebSocketResponseHandler(objectMapper);
-        this.chatMessageRepository = chatMessageRepository;
-        this.sseManager = sseManager;
-    }
 
     @Override
     public List<String> getSubProtocols() {
@@ -62,9 +54,12 @@ public class MyWebSocketHandler implements WebSocketHandler {
     @Override
     public Mono<Void> handle(WebSocketSession session) {
         String channelId = getChannelId(session);
-        String userId = getUserId(session);
+        String userId = (String) session.getAttributes().get("userId");
+
+        log.info("WebSocket 연결 시작: userId={}, channelId={}, sessionId={}", userId, channelId, session.getId());
 
         return validUser(channelId, userId)
+                .doOnError(error -> log.error("Valid user check failed: {}", error.getMessage()))
                 .then(Mono.defer(() -> {
                     sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
@@ -210,38 +205,23 @@ public class MyWebSocketHandler implements WebSocketHandler {
         }
     }
 
-    //임시로 쿼리 스트링으로 userId, channelId 받아오기 (userId는 jwt 로직 작성 후 쿼리 스트링 제거)
-    private Map<String, String> getQueryParams(WebSocketSession session) {
+    private String getChannelId(WebSocketSession session) {
         String query = session.getHandshakeInfo().getUri().getQuery();
         if (query == null || query.isEmpty()) {
-            throw new IllegalArgumentException("쿼리 스트링이 비어있음");
+            throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
         }
 
-        Map<String, String> params = new HashMap<>();
-        for (String param : query.split("&")) {
-            String[] keyValue = param.split("=");
-            if (keyValue.length == 2) {
-                params.put(keyValue[0], keyValue[1]);
-            }
-        }
-        return params;
-    }
+        // 쿼리 파라미터 파싱
+        Map<String, String> queryParams = Arrays.stream(query.split("&"))
+                .map(param -> param.split("="))
+                .filter(param -> param.length == 2)
+                .collect(Collectors.toMap(param -> param[0], param -> param[1]));
 
-    private String getChannelId(WebSocketSession session) {
-        Map<String, String> queryParams = getQueryParams(session);
         String channelId = queryParams.get("channelId");
         if (channelId == null) {
-            throw new IllegalArgumentException("channelId가 쿼리 스트링에 존재 x");
+            throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
         }
-        return channelId;
-    }
 
-    private String getUserId(WebSocketSession session) {
-        Map<String, String> queryParams = getQueryParams(session);
-        String userId = queryParams.get("userId");
-        if (userId == null) {
-            throw new IllegalArgumentException("userId가 쿼리 스트링에 존재 x");
-        }
-        return userId;
+        return channelId;
     }
 }
