@@ -1,10 +1,16 @@
 package bill.chat.controller;
 
 import bill.chat.apiPayload.ApiResponse;
+import bill.chat.config.jwt.JWTUtil;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO;
+import bill.chat.dto.SSEDTO;
 import bill.chat.service.ChatService;
+import bill.chat.service.SSEManager;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.slf4j.MDC;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -14,8 +20,10 @@ import reactor.core.publisher.Flux;
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/chat")
+@Slf4j
 public class ChatController {
     private final ChatService chatService;
+    private final SSEManager sseManager;
 
     @GetMapping("/messages")
     public Flux<ApiResponse<ChatMessageResponseDTO.getChatMessage>> getChatMessages(@RequestParam String channelId,
@@ -25,5 +33,16 @@ public class ChatController {
                 .map(ApiResponse::onSuccess);
     }
 
-    //TODO: api 서버에서 유효한 채팅방 list 받은다음에 여기서 페이징 후 전달?
+    @GetMapping(value = "/list/SSE", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public Flux<SSEDTO> subscribeSSE() {
+        String userId = MDC.get(JWTUtil.MDC_USER_ID).toString();
+        if (sseManager.doesSinkExist(userId)) {
+            log.warn("이미 구독 중인 사용자: {}", userId);
+            return Flux.error(new IllegalStateException("이미 구독 중인 사용자입니다."));
+        }
+
+        return sseManager.getOrManageSink(userId)
+                .asFlux();
+    }
+
 }

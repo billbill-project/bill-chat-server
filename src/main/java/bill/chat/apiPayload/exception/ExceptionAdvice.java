@@ -15,7 +15,8 @@ import reactor.core.publisher.Mono;
 public class ExceptionAdvice {
 
     @ExceptionHandler(Exception.class)
-    public Mono<ResponseEntity<ApiResponse<Object>>> handleGeneralException() {
+    public Mono<ResponseEntity<ApiResponse<Object>>> handleGeneralException(Exception e) {
+        log.error("Handling GeneralException: {}", e.getMessage());
         ApiResponse<Object> response = ApiResponse.onFailure(
                 ErrorStatus._INTERNAL_SERVER_ERROR.getCode(),
                 ErrorStatus._INTERNAL_SERVER_ERROR.getMessage(),
@@ -27,6 +28,7 @@ public class ExceptionAdvice {
 
     @ExceptionHandler(GeneralException.class)
     public Mono<ResponseEntity<ApiResponse<Object>>> handleCustomException(GeneralException e) {
+        log.error("Handling Exception: {}", e.getMessage());
         ErrorReasonDTO reason = e.getErrorReason();
         ApiResponse<Object> response = ApiResponse.onFailure(
                 reason.getCode(),
@@ -36,5 +38,4 @@ public class ExceptionAdvice {
 
         return Mono.just(ResponseEntity.status(reason.getHttpStatus()).body(response));
     }
-
 }
