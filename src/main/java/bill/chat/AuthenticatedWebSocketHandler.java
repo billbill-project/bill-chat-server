@@ -1,5 +1,7 @@
 package bill.chat;
 
+import bill.chat.apiPayload.code.status.ErrorStatus;
+import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.config.jwt.JWTUtil;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.reactive.socket.WebSocketHandler;
@@ -30,7 +32,7 @@ public class AuthenticatedWebSocketHandler implements WebSocketHandler {
                 return delegate.handle(session);
             } else {
                 log.error("Invalid WebSocket token");
-                return session.close();
+                return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
             }
         }
         return session.close();

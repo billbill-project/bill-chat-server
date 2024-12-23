@@ -2,14 +2,17 @@ package bill.chat.converter;
 
 import bill.chat.dto.ChatMessageResponseDTO;
 import bill.chat.model.ChatMessage;
+import bill.chat.model.enums.SystemType;
 
 public class ChatMessageConverter {
-    public static ChatMessage toChatMessage(String channelId, String senderId, String content, boolean isImage, boolean isSystem,
+    public static ChatMessage toChatMessage(String channelId, String senderId, String content, SystemType systemType,
+                                            boolean isImage, boolean isSystem,
                                             boolean isRead) {
         return ChatMessage.builder()
                 .channelId(channelId)
                 .senderId(senderId)
                 .content(content)
+                .systemType(systemType)
                 .isImage(isImage)
                 .isSystem(isSystem)
                 .isRead(isRead)
@@ -18,6 +21,7 @@ public class ChatMessageConverter {
 
     public static ChatMessageResponseDTO.getChatMessage toGetChatMessage(ChatMessage chatMessage) {
         return ChatMessageResponseDTO.getChatMessage.builder()
+                .systemType(chatMessage.getSystemType())
                 .senderId(chatMessage.getSenderId())
                 .content(chatMessage.getContent())
                 .isImage(chatMessage.isImage())

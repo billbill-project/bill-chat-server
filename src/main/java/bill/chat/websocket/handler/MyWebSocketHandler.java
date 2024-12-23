@@ -12,6 +12,7 @@ import bill.chat.dto.SSEDTO;
 import bill.chat.model.ChatMessage;
 import bill.chat.dto.ChatDTO;
 import bill.chat.model.Participant;
+import bill.chat.model.enums.SystemType;
 import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
 import bill.chat.service.SSEManager;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.stream.Collectors;
+import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -131,6 +133,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     boolean isImage = false;
                     boolean isSystem = false;
                     boolean isRead = true;
+                    SystemType systemType = null;
                     String lastContent = chatDTO.getContent();
 
                     // 두 명 이상이 session 가지면 읽은 걸로 간주
@@ -145,11 +148,12 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     }
                     if (chatDTO.getMessageType() == SYSTEM) {
                         isSystem = true;
+                        systemType = chatDTO.getSystemType();
                     }
                     chatRoom.updateSender(chatDTO.getSenderId());
                     chatRoom.updateLastMessage(lastContent);
                     String senderId = chatDTO.getSenderId();
-                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent,
+                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent, systemType,
                             isImage, isSystem, isRead);
 
                     return chatRoomRepository.save(chatRoom)
