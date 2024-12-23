@@ -1,5 +1,7 @@
 package bill.chat.service;
 
+import bill.chat.apiPayload.code.status.ErrorStatus;
+import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.converter.ChatRoomConverter;
 import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
 import bill.chat.dto.WebhookPayload.GetChatListPayload;
@@ -24,15 +26,30 @@ public class ChatService {
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
 
-    public Flux<ChatMessage> getChatMessages(String channelId, String beforeTimestampStr) {
-        int size = 50;
-        LocalDateTime beforeTimestamp = null;
-        if (beforeTimestampStr != null && !beforeTimestampStr.isEmpty()) {
-            DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
-            beforeTimestamp = LocalDateTime.parse(beforeTimestampStr, formatter);
-        }
+    public Flux<ChatMessage> getChatMessages(String channelId, String beforeTimestampStr, String userId) {
+        int size = 30;
 
-        return chatMessageRepository.findMessagesByChannelIdBeforeTimestamp(channelId, beforeTimestamp, size);
+        Mono<LocalDateTime> beforeTimestampMono = Mono.fromSupplier(() -> {
+            if (beforeTimestampStr != null && !beforeTimestampStr.isEmpty()) {
+                DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
+                return LocalDateTime.parse(beforeTimestampStr, formatter);
+            }
+            return null;
+        });
+
+        return chatRoomRepository.findById(channelId)
+                .switchIfEmpty(Mono.error(new GeneralException(ErrorStatus.NOT_FOUND_CHANNEL)))
+                .flatMapMany(chatRoom -> {
+                    boolean isParticipant = chatRoom.getParticipants().stream()
+                            .anyMatch(participant -> participant.getUserId().equals(userId));
+                    if (!isParticipant) {
+                        return Flux.error(new GeneralException(ErrorStatus.NOT_PARTICIPANT));
+                    }
+
+                    return beforeTimestampMono.flatMapMany(beforeTimestamp ->
+                            chatMessageRepository.findMessagesByChannelIdBeforeTimestamp(channelId, beforeTimestamp, size)
+                    );
+                });
     }
 
     @Transactional
