@@ -28,7 +28,8 @@ public class ChatController {
     @GetMapping("/messages")
     public Flux<ApiResponse<ChatMessageResponseDTO.getChatMessage>> getChatMessages(@RequestParam String channelId,
                                                                                     @RequestParam(required = false) String beforeTimestamp) {
-        return chatService.getChatMessages(channelId, beforeTimestamp)
+        String userId = MDC.get(JWTUtil.MDC_USER_ID).toString();
+        return chatService.getChatMessages(channelId, beforeTimestamp, userId)
                 .map(ChatMessageConverter::toGetChatMessage)
                 .map(ApiResponse::onSuccess);
     }
