@@ -3,6 +3,7 @@ package bill.chat.config.interceptor;
 import bill.chat.apiPayload.code.status.ErrorStatus;
 import bill.chat.apiPayload.exception.handler.MemberHandler;
 import bill.chat.config.jwt.JWTUtil;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
@@ -22,6 +23,14 @@ import java.util.UUID;
 public class BillChatInterceptor implements WebFilter {
 
     private final JWTUtil jwtUtil;
+    private static final List<String> EXCLUDED_PATHS = List.of(
+            "/ws/",
+            "/webhook/",
+            "/swagger-ui/",
+            "/v3/api-docs/",
+            "/swagger-ui.html",
+            "/docs/"
+    );
 
     private String resolveToken(ServerWebExchange exchange) {
         String header = exchange.getRequest().getHeaders().getFirst("Authorization");
@@ -49,9 +58,11 @@ public class BillChatInterceptor implements WebFilter {
         String requestURI = exchange.getRequest().getURI().getPath();
         String uuid = UUID.randomUUID().toString();
 
-        if (requestURI.startsWith("/ws/")) {
-            log.info("WebSocket REQUEST [{}][{}]: bypassed by BillChatInterceptor", uuid, requestURI);
-            return chain.filter(exchange);
+        for (String excludedPath : EXCLUDED_PATHS) {
+            if (requestURI.startsWith(excludedPath)) {
+                log.info("REQUEST [{}][{}]: bypassed by BillChatInterceptor", uuid, requestURI);
+                return chain.filter(exchange);
+            }
         }
 
         exchange.getAttributes().put("LOG_ID", uuid);
