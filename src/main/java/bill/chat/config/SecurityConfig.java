@@ -11,12 +11,16 @@ import org.springframework.security.web.server.SecurityWebFilterChain;
 public class SecurityConfig {
 
     @Bean
-    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) throws Exception {
+    public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
-            .authorizeExchange(exchange -> exchange
-                .pathMatchers("/ws/**", "webhook/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html","/docs/**").permitAll()
-                .anyExchange().authenticated()
-            );
+                .authorizeExchange(exchange -> exchange
+                        .pathMatchers("api/**","/ws/**", "/webhook/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/docs/**")
+                        .permitAll()
+                        .anyExchange()
+                        .authenticated()
+                )
+                .formLogin(ServerHttpSecurity.FormLoginSpec::disable);
+
         return http.build();
     }
 }

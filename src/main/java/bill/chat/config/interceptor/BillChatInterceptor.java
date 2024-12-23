@@ -1,6 +1,7 @@
 package bill.chat.config.interceptor;
 
 import bill.chat.apiPayload.code.status.ErrorStatus;
+import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.apiPayload.exception.handler.MemberHandler;
 import bill.chat.config.jwt.JWTUtil;
 import java.util.List;
@@ -84,8 +85,7 @@ public class BillChatInterceptor implements WebFilter {
 
         log.info("REQUEST [{}][{}] : no auth by user", uuid, requestURI);
 
-        exchange.getResponse().setStatusCode(HttpStatus.UNAUTHORIZED);
-        return exchange.getResponse().setComplete();
+        return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
     }
 }
 
