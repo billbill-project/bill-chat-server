@@ -27,6 +27,8 @@ public class BillChatInterceptor implements ChannelInterceptor {
     public static final String AUTHORIZATION = "Authorization";
     public static final String BEARER_ = "Bearer ";
 
+
+
     private Authentication createAuthentication(String userId, String userRole) {
         GrantedAuthority authority = new SimpleGrantedAuthority(userRole);
         return new UsernamePasswordAuthenticationToken(userId, null, Collections.singletonList(authority));
@@ -38,23 +40,24 @@ public class BillChatInterceptor implements ChannelInterceptor {
 
         if (StompCommand.CONNECT.equals(accessor.getCommand())) {
             String destination = accessor.getDestination();
-            if (destination != null && destination.startsWith("/webhook/")) {
-                log.info("Skipping JWT validation for path: {}", destination);
-                return message; // `/webhook/` 경로는 인증 제외
+            if (destination != null &&
+                (destination.startsWith("/webhook/") || destination.startsWith("/docs/")|| destination.startsWith("/swagger-ui/"))) {
+                log.debug("Skipping JWT validation for path: {}", destination);
+                return message; // 인증 제외 경로
             }
 
-            Optional<String> jwtTokenOptional = Optional.ofNullable(accessor.getFirstNativeHeader(AUTHORIZATION));
-            String jwtToken = jwtTokenOptional
+            String jwtToken = Optional.ofNullable(accessor.getFirstNativeHeader(AUTHORIZATION))
                     .filter(token -> token.startsWith(BEARER_))
                     .map(token -> token.substring(BEARER_.length()))
                     .filter(jwtUtil::isValidAccessToken)
-                    .orElseThrow(() -> new RuntimeException("Invalid token"));
+                    .orElseThrow(() -> new RuntimeException("JWT Token is missing or invalid"));
 
             String userId = jwtUtil.putUserMDC(jwtUtil.getClaims(jwtToken));
             String userRole = jwtUtil.getUserRole(jwtToken).name();
 
             Authentication authentication = createAuthentication(userId, userRole);
             accessor.setUser(authentication);
+            log.info("User authenticated: userId={}, role={}", userId, userRole);
         }
 
         return message;

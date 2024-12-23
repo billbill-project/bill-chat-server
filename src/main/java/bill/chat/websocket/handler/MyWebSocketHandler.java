@@ -6,6 +6,7 @@ import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESS
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
 
+import bill.chat.config.jwt.JWTUtil;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.model.ChatMessage;
 import bill.chat.dto.ChatDTO;
@@ -25,6 +26,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Mono;
@@ -37,14 +39,15 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final ObjectMapper objectMapper;
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
-
+    private final JWTUtil jwtUtil;
     @Autowired
     public MyWebSocketHandler(ChatRoomRepository chatRoomRepository, ObjectMapper objectMapper,
-                              ChatMessageRepository chatMessageRepository) {
+                              ChatMessageRepository chatMessageRepository, JWTUtil jwtUtil) {
         this.chatRoomRepository = chatRoomRepository;
         this.objectMapper = objectMapper;
         this.responseHandler = new WebSocketResponseHandler(objectMapper);
         this.chatMessageRepository = chatMessageRepository;
+        this.jwtUtil = jwtUtil;
     }
 
     @Override
@@ -53,31 +56,37 @@ public class MyWebSocketHandler implements WebSocketHandler {
     }
 
     @Override
-    public Mono<Void> handle(WebSocketSession session) {
-        String channelId = getChannelId(session);
-        String userId = getUserId(session);
+public Mono<Void> handle(WebSocketSession session) {
+    String channelId = getChannelId(session);
+    String userId;
 
-        return validUser(channelId, userId)
-                .then(Mono.defer(() -> {
-                    sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
-
-                    return processRead(channelId, userId)
-                            .then(session.receive()
-                                    .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
-                                    .then())
-                            .doFinally(signalType -> {
-                                log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
-                                sessions.getOrDefault(channelId, List.of()).remove(session);
-                            });
-                }))
-                .onErrorResume(e -> {
-                    // validUser에서 발생한 예외 처리
-                    if (e instanceof WebSocketException) {
-                        return responseHandler.handleError(session, (WebSocketException) e);
-                    }
-                    return Mono.empty();
-                });
+    try {
+        userId = getUserId(session);
+    } catch (Exception e) {
+        log.error("JWT 검증 실패: {}", e.getMessage());
+        return session.close(CloseStatus.BAD_DATA); // JWT 검증 실패 시 WebSocket 종료
     }
+
+    return validUser(channelId, userId)
+            .then(Mono.defer(() -> {
+                sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
+
+                return processRead(channelId, userId)
+                        .then(session.receive()
+                                .flatMap(message -> handleMessage(session, channelId, message.getPayloadAsText()))
+                                .then())
+                        .doFinally(signalType -> {
+                            log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
+                            sessions.getOrDefault(channelId, List.of()).remove(session);
+                        });
+            }))
+            .onErrorResume(e -> {
+                if (e instanceof WebSocketException) {
+                    return responseHandler.handleError(session, (WebSocketException) e);
+                }
+                return Mono.empty();
+            });
+}
 
     private Mono<Void> validUser(String channelId, String userId) {
         return chatRoomRepository.findByChannelId(channelId)
@@ -160,22 +169,23 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO, ChatMessage savedChat) {
         log.info("broadcastMessage 진입");
         List<WebSocketSession> chatRoomSessions = sessions.getOrDefault(chatRoomId, List.of());
-        log.info("chatRoomSessions : {}", chatRoomSessions);
-        // 각 세션의 상태를 로깅
-        chatRoomSessions.stream()
-                .forEach(session -> {
-                    boolean isOpen = session.isOpen();
-                    log.info("세션 상태: {} - {}", session.getId(), isOpen ? "Open" : "Closed");
-                });
-        // WebSocketSuccessDTO 변환
+
         WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
                 chatDTO,
                 savedChat.getCreatedAt()
         );
-        log.info("WebSocketSuccessDTO 생성 : {}", successDTO.getChannelId());
-        // 각 세션에 성공 메시지 브로드캐스트
+
         return Mono.when(chatRoomSessions.stream()
                         .filter(WebSocketSession::isOpen)
+                        .filter(session -> {
+                            try {
+                                String userId = getUserId(session); // JWT 기반 인증된 세션만 필터링
+                                return userId != null;
+                            } catch (Exception e) {
+                                log.warn("JWT 검증 실패한 세션 제외: {}", session.getId());
+                                return false;
+                            }
+                        })
                         .map(session -> responseHandler.handleSuccess(session, successDTO)
                                 .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
                                 .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
@@ -220,11 +230,16 @@ public class MyWebSocketHandler implements WebSocketHandler {
     }
 
     private String getUserId(WebSocketSession session) {
-        Map<String, String> queryParams = getQueryParams(session);
-        String userId = queryParams.get("userId");
-        if (userId == null) {
-            throw new IllegalArgumentException("userId가 쿼리 스트링에 존재 x");
-        }
-        return userId;
+    String jwtToken = session.getHandshakeInfo().getHeaders().getFirst("Authorization");
+    if (jwtToken == null || !jwtToken.startsWith("Bearer ")) {
+        throw new IllegalArgumentException("Authorization 헤더에 JWT가 없습니다.");
     }
+
+    jwtToken = jwtToken.substring("Bearer ".length());
+    if (!jwtUtil.isValidAccessToken(jwtToken)) {
+        throw new IllegalArgumentException("유효하지 않은 JWT 토큰입니다.");
+    }
+
+    return jwtUtil.getClaims(jwtToken).getSubject(); // JWT에서 userId 추출
+}
 }

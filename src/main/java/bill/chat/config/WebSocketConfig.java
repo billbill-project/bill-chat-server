@@ -14,6 +14,7 @@ import org.springframework.web.reactive.HandlerMapping;
 import org.springframework.web.reactive.handler.SimpleUrlHandlerMapping;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.server.support.WebSocketHandlerAdapter;
+import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.socket.config.annotation.StompEndpointRegistry;
 import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerConfigurer;
 
@@ -27,16 +28,20 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     private static final String SIMPLE_BROKER = "/topic";
     private static final String PUBLISH = "/app";
 
+
+
     // MyWebSocketHandler를 생성자 주입으로 받아옴
     public WebSocketConfig(MyWebSocketHandler myWebSocketHandler, BillChatInterceptor billChatInterceptor) {
         this.myWebSocketHandler = myWebSocketHandler;
         this.billChatInterceptor = billChatInterceptor;
     }
 
+
+
     @Bean
     public HandlerMapping handlerMapping() {
         Map<String, WebSocketHandler> map = new HashMap<>();
-        map.put("/ws/greeting", myWebSocketHandler);
+        map.put("/ws/chat", myWebSocketHandler); // WebSocket 엔드포인트
 
         SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
         mapping.setUrlMap(map);
@@ -56,11 +61,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         registry.setApplicationDestinationPrefixes(PUBLISH);
     }
 
-    @Override
-    public void registerStompEndpoints(StompEndpointRegistry registry) {
-        registry.addEndpoint(ENDPOINT)
-                .setAllowedOriginPatterns("*");
-    }
+
 
     // https://shout-to-my-mae.tistory.com/430 참고
     @Override
