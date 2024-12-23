@@ -66,6 +66,7 @@ jobs:
             sudo docker run --name bill-chat -d -p 80:8080 \
               -e SPRING_DATA_MONGODB_URI=${{ secrets.SPRING_DATA_MONGODB_URI }} \
               -e SPRING_DATA_MONGODB_DATABASE=${{ secrets.SPRING_DATA_MONGODB_DATABASE }} \
+              -e SPRING_MAIN_WEB_APPLICATION_TYPE=${{secretrs.SPRING_MAIN_WEB_APPLICATION_TYPE }} \
               -e SPRINGDOC_PACKAGES_TO_SCAN=${{ secrets.SPRINGDOC_PACKAGES_TO_SCAN }} \
               -e SPRINGDOC_SWAGGER_UI_PATH=${{ secrets.SPRINGDOC_SWAGGER_UI_PATH }} \
               -e SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL=${{ secrets.SPRINGDOC_SWAGGER_UI_DISABLE_SWAGGER_DEFAULT_URL }} \
