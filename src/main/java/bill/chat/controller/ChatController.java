@@ -3,10 +3,11 @@ package bill.chat.controller;
 import bill.chat.apiPayload.ApiResponse;
 import bill.chat.config.jwt.JWTUtil;
 import bill.chat.converter.ChatMessageConverter;
-import bill.chat.dto.ChatMessageResponseDTO;
+import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.dto.SSEDTO;
 import bill.chat.service.ChatService;
 import bill.chat.service.SSEManager;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
@@ -26,11 +28,12 @@ public class ChatController {
     private final SSEManager sseManager;
 
     @GetMapping("/messages")
-    public Flux<ApiResponse<ChatMessageResponseDTO.getChatMessage>> getChatMessages(@RequestParam String channelId,
-                                                                                    @RequestParam(required = false) String beforeTimestamp) {
-        String userId = MDC.get(JWTUtil.MDC_USER_ID).toString();
+    public Mono<ApiResponse<List<getChatMessage>>> getChatMessages(@RequestParam String channelId,
+                                                                   @RequestParam(required = false) String beforeTimestamp) {
+        String userId = MDC.get(JWTUtil.MDC_USER_ID);
         return chatService.getChatMessages(channelId, beforeTimestamp, userId)
                 .map(ChatMessageConverter::toGetChatMessage)
+                .collectList()
                 .map(ApiResponse::onSuccess);
     }
 
