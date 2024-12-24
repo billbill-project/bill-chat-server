@@ -28,28 +28,22 @@ public class ChatService {
 
     public Flux<ChatMessage> getChatMessages(String channelId, String beforeTimestampStr, String userId) {
         int size = 30;
+        LocalDateTime beforeTimestamp;
+        if (beforeTimestampStr != null && !beforeTimestampStr.isEmpty()) {
+            DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
+            beforeTimestamp = LocalDateTime.parse(beforeTimestampStr, formatter);
+        } else {
+            beforeTimestamp = null;
+        }
 
-        Mono<LocalDateTime> beforeTimestampMono = Mono.fromSupplier(() -> {
-            if (beforeTimestampStr != null && !beforeTimestampStr.isEmpty()) {
-                DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
-                return LocalDateTime.parse(beforeTimestampStr, formatter);
-            }
-            return null;
-        });
-
-        return chatRoomRepository.findById(channelId)
+        return chatRoomRepository.findByChannelId(channelId)
                 .switchIfEmpty(Mono.error(new GeneralException(ErrorStatus.NOT_FOUND_CHANNEL)))
-                .flatMapMany(chatRoom -> {
-                    boolean isParticipant = chatRoom.getParticipants().stream()
-                            .anyMatch(participant -> participant.getUserId().equals(userId));
-                    if (!isParticipant) {
-                        return Flux.error(new GeneralException(ErrorStatus.NOT_PARTICIPANT));
-                    }
-
-                    return beforeTimestampMono.flatMapMany(beforeTimestamp ->
-                            chatMessageRepository.findMessagesByChannelIdBeforeTimestamp(channelId, beforeTimestamp, size)
-                    );
-                });
+                .filter(chatRoom -> chatRoom.getParticipants().stream()
+                        .anyMatch(participant -> participant.getUserId().equals(userId)))
+                .switchIfEmpty(Mono.error(new GeneralException(ErrorStatus.NOT_PARTICIPANT)))
+                .flatMapMany(chatRoom ->
+                        chatMessageRepository.findMessagesByChannelIdBeforeTimestamp(channelId, beforeTimestamp, size)
+                );
     }
 
     @Transactional
@@ -66,6 +60,7 @@ public class ChatService {
             DateTimeFormatter formatter = DateTimeFormatter.ISO_DATE_TIME;
             beforeTimestamp = LocalDateTime.parse(payload.getBeforeTimestamp(), formatter);
         }
-        return chatRoomRepository.findChatRoomsByChatRoomIdsAndBeforeTimestamp(payload.getChatRoomIds(), beforeTimestamp, size);
+        return chatRoomRepository.findChatRoomsByChatRoomIdsAndBeforeTimestamp(payload.getChatRoomIds(),
+                beforeTimestamp, size);
     }
 }
