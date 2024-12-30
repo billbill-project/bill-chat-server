@@ -1,7 +1,9 @@
 package bill.chat.dto;
 
 import bill.chat.model.Participant;
+import bill.chat.model.enums.MessageType;
 import bill.chat.model.enums.SystemType;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import lombok.AllArgsConstructor;
@@ -19,8 +21,10 @@ public class ChatMessageResponseDTO {
         String senderId;
         String content;
         SystemType systemType;
-        boolean isImage;
-        boolean isSystem;
+        LocalDate startedAt;
+        LocalDate endedAt;
+        Integer price;
+        MessageType messageType;
         boolean isRead;
         LocalDateTime createdAt;
     }

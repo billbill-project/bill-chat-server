@@ -2,6 +2,7 @@ package bill.chat.websocket.handler;
 
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
+import static bill.chat.model.enums.SystemType.RESERVATION_REQUEST;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
@@ -22,6 +23,7 @@ import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
 import bill.chat.websocket.payload.handler.WebSocketSuccessConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -130,10 +132,11 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .flatMap(chatRoom -> {
                     log.info("메시지 처리 시작...");
                     // 메시지 생성
-                    boolean isImage = false;
-                    boolean isSystem = false;
                     boolean isRead = true;
                     SystemType systemType = null;
+                    LocalDate startedAt = null;
+                    LocalDate endedAt = null;
+                    Integer price = null;
                     String lastContent = chatDTO.getContent();
 
                     // 두 명 이상이 session 가지면 읽은 걸로 간주
@@ -143,18 +146,21 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
                     }
                     if (chatDTO.getMessageType() == IMAGE) {
-                        isImage = true;
                         lastContent = "사진";
                     }
                     if (chatDTO.getMessageType() == SYSTEM) {
-                        isSystem = true;
                         systemType = chatDTO.getSystemType();
+                        if (systemType.equals(RESERVATION_REQUEST)) {
+                            startedAt = chatDTO.getStartedAt();
+                            endedAt = chatDTO.getEndedAt();
+                            price = chatDTO.getPrice();
+                        }
                     }
                     chatRoom.updateSender(chatDTO.getSenderId());
                     chatRoom.updateLastMessage(lastContent);
                     String senderId = chatDTO.getSenderId();
                     ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent, systemType,
-                            isImage, isSystem, isRead);
+                            chatDTO.getMessageType(), isRead, startedAt, endedAt, price);
 
                     return chatRoomRepository.save(chatRoom)
                             .doOnSuccess(updatedChatRoom -> {
@@ -185,7 +191,8 @@ public class MyWebSocketHandler implements WebSocketHandler {
         // WebSocketSuccessDTO 변환
         WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
                 chatDTO,
-                savedChat.getCreatedAt()
+                savedChat.getCreatedAt(),
+                savedChat.isRead()
         );
         log.info("WebSocketSuccessDTO 생성 : {}", successDTO.getChannelId());
         // 각 세션에 성공 메시지 브로드캐스트

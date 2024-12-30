@@ -5,13 +5,17 @@ import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
 import java.time.LocalDateTime;
 
 public class WebSocketSuccessConverter {
-    public WebSocketSuccessDTO toSuccessDTO(ChatDTO chatDTO, LocalDateTime time) {
+    public WebSocketSuccessDTO toSuccessDTO(ChatDTO chatDTO, LocalDateTime time, boolean read) {
         return WebSocketSuccessDTO.builder()
                 .messageType(chatDTO.getMessageType())
                 .channelId(chatDTO.getChannelId())
                 .systemType(chatDTO.getSystemType())
+                .startedAt(chatDTO.getStartedAt())
+                .endedAt(chatDTO.getEndedAt())
+                .price(chatDTO.getPrice())
                 .senderId(chatDTO.getSenderId())
                 .content(chatDTO.getContent())
+                .read(read)
                 .createdAt(time)
                 .build();
     }
