@@ -26,13 +26,10 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.stream.Collectors;
-import lombok.Builder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -117,7 +114,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleMessage(WebSocketSession session, String channelId, String payload) {
         try {
             ChatDTO chatDTO = parseChatMessage(payload); // 여기서 JSON 파싱
-            return processChatMessage(channelId, chatDTO, session);
+            return processChatMessage(channelId, chatDTO);
         } catch (WebSocketException e) {
             log.error("WebSocketException 발생: {}", e.getMessage());
             return responseHandler.handleError(session, e);
@@ -127,7 +124,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
         }
     }
 
-    private Mono<Void> processChatMessage(String channelId, ChatDTO chatDTO, WebSocketSession senderSession) {
+    private Mono<Void> processChatMessage(String channelId, ChatDTO chatDTO) {
         return chatRoomRepository.findByChannelId(channelId)
                 .doOnNext(chatRoom -> log.info("채팅방 조회 성공: {}", channelId))
 
@@ -201,9 +198,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                                 .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
                                 .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
                         )
-                        .toArray(Mono[]::new))
-                .doOnSuccess(unused -> log.info("모든 메시지 전송 완료 (USER_LEFT 메시지)"))
-                .doOnError(e -> log.error("메시지 브로드캐스트 중 오류 발생 (USER_LEFT): {}", e.getMessage(), e));
+                        .toArray(Mono[]::new));
     }
 
 
@@ -218,7 +213,6 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 savedChat.getCreatedAt(),
                 savedChat.isRead()
         );
-        log.info("WebSocketSuccessDTO 생성 : {}", successDTO.getChannelId());
         // 각 세션에 성공 메시지 브로드캐스트
         return Mono.when(chatRoomSessions.stream()
                         .filter(WebSocketSession::isOpen)
@@ -226,9 +220,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                                 .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
                                 .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
                         )
-                        .toArray(Mono[]::new))
-                .doOnSuccess(unused -> log.info("모든 메시지 전송 완료"))
-                .doOnError(e -> log.error("메시지 브로드캐스트 중 오류 발생: {}", e.getMessage(), e));
+                        .toArray(Mono[]::new));
     }
 
     private ChatDTO parseChatMessage(String payload) {
@@ -245,17 +237,16 @@ public class MyWebSocketHandler implements WebSocketHandler {
             throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
         }
 
-        // 쿼리 파라미터 파싱
-        Map<String, String> queryParams = Arrays.stream(query.split("&"))
-                .map(param -> param.split("="))
-                .filter(param -> param.length == 2)
-                .collect(Collectors.toMap(param -> param[0], param -> param[1]));
+        if (!query.startsWith("channelId=")) {
+            throw new IllegalArgumentException("유효하지 않은 쿼리 파라미터");
+        }
 
-        String channelId = queryParams.get("channelId");
-        if (channelId == null) {
-            throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
+        String channelId = query.substring("channelId=".length());
+        if (channelId.isEmpty()) {
+            throw new IllegalArgumentException("channelId 값이 비어 있음");
         }
 
         return channelId;
     }
+
 }

@@ -8,7 +8,6 @@ public class WebSocketSuccessConverter {
     public WebSocketSuccessDTO toSuccessDTO(ChatDTO chatDTO, LocalDateTime time, boolean read) {
         return WebSocketSuccessDTO.builder()
                 .messageType(chatDTO.getMessageType())
-                .channelId(chatDTO.getChannelId())
                 .systemType(chatDTO.getSystemType())
                 .startedAt(chatDTO.getStartedAt())
                 .endedAt(chatDTO.getEndedAt())

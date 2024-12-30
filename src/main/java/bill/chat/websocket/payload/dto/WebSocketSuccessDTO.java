@@ -11,7 +11,6 @@ import lombok.Getter;
 @Builder
 public class WebSocketSuccessDTO {
     private MessageType messageType;
-    private String channelId;
     private SystemType systemType;
     private LocalDate startedAt;
     private LocalDate endedAt;
