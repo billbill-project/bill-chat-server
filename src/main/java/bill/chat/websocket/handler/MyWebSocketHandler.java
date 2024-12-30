@@ -2,6 +2,8 @@ package bill.chat.websocket.handler;
 
 import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
+import static bill.chat.model.enums.SystemType.RESERVATION_REQUEST;
+import static bill.chat.model.enums.SystemType.USER_LEFT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
 import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
@@ -22,6 +24,8 @@ import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
 import bill.chat.websocket.payload.handler.WebSocketSuccessConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -130,10 +134,11 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .flatMap(chatRoom -> {
                     log.info("메시지 처리 시작...");
                     // 메시지 생성
-                    boolean isImage = false;
-                    boolean isSystem = false;
                     boolean isRead = true;
                     SystemType systemType = null;
+                    LocalDate startedAt = null;
+                    LocalDate endedAt = null;
+                    Integer price = null;
                     String lastContent = chatDTO.getContent();
 
                     // 두 명 이상이 session 가지면 읽은 걸로 간주
@@ -143,18 +148,30 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
                     }
                     if (chatDTO.getMessageType() == IMAGE) {
-                        isImage = true;
                         lastContent = "사진";
                     }
                     if (chatDTO.getMessageType() == SYSTEM) {
-                        isSystem = true;
                         systemType = chatDTO.getSystemType();
+                        if (systemType.equals(RESERVATION_REQUEST)) {
+                            startedAt = chatDTO.getStartedAt();
+                            endedAt = chatDTO.getEndedAt();
+                            price = chatDTO.getPrice();
+                        }
+
+                        if (systemType.equals(USER_LEFT)) {
+                            WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
+                                    chatDTO,
+                                    LocalDateTime.now(),
+                                    isRead
+                            );
+                            return broadcastMessage(channelId, successDTO);
+                        }
                     }
                     chatRoom.updateSender(chatDTO.getSenderId());
                     chatRoom.updateLastMessage(lastContent);
                     String senderId = chatDTO.getSenderId();
                     ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent, systemType,
-                            isImage, isSystem, isRead);
+                            chatDTO.getMessageType(), isRead, startedAt, endedAt, price);
 
                     return chatRoomRepository.save(chatRoom)
                             .doOnSuccess(updatedChatRoom -> {
@@ -172,20 +189,34 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 });
     }
 
+    private Mono<Void> broadcastMessage(String chatRoomId, WebSocketSuccessDTO successDTO) {
+        log.info("broadcastMessage 진입 (USER_LEFT 처리)");
+        List<WebSocketSession> chatRoomSessions = sessions.getOrDefault(chatRoomId, List.of());
+        log.info("chatRoomSessions : {}", chatRoomSessions);
+
+        // 각 세션에 성공 메시지 브로드캐스트
+        return Mono.when(chatRoomSessions.stream()
+                        .filter(WebSocketSession::isOpen)
+                        .map(session -> responseHandler.handleSuccess(session, successDTO)
+                                .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
+                                .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
+                        )
+                        .toArray(Mono[]::new))
+                .doOnSuccess(unused -> log.info("모든 메시지 전송 완료 (USER_LEFT 메시지)"))
+                .doOnError(e -> log.error("메시지 브로드캐스트 중 오류 발생 (USER_LEFT): {}", e.getMessage(), e));
+    }
+
+
     private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO, ChatMessage savedChat) {
         log.info("broadcastMessage 진입");
         List<WebSocketSession> chatRoomSessions = sessions.getOrDefault(chatRoomId, List.of());
         log.info("chatRoomSessions : {}", chatRoomSessions);
-        // 각 세션의 상태를 로깅
-        chatRoomSessions.stream()
-                .forEach(session -> {
-                    boolean isOpen = session.isOpen();
-                    log.info("세션 상태: {} - {}", session.getId(), isOpen ? "Open" : "Closed");
-                });
+
         // WebSocketSuccessDTO 변환
         WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
                 chatDTO,
-                savedChat.getCreatedAt()
+                savedChat.getCreatedAt(),
+                savedChat.isRead()
         );
         log.info("WebSocketSuccessDTO 생성 : {}", successDTO.getChannelId());
         // 각 세션에 성공 메시지 브로드캐스트
