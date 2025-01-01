@@ -167,7 +167,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     chatRoom.updateSender(chatDTO.getSenderId());
                     chatRoom.updateLastMessage(lastContent);
                     String senderId = chatDTO.getSenderId();
-                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, lastContent, systemType,
+                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, chatDTO.getContent(), systemType,
                             chatDTO.getMessageType(), isRead, startedAt, endedAt, price);
 
                     return chatRoomRepository.save(chatRoom)
