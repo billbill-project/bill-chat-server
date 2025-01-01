@@ -43,7 +43,7 @@ public class ChatRoomConverter {
                 .channelId(chatRoom.getChannelId())
                 .unreadCount(chatRoom.getUnreadCount())
                 .lastChat(chatRoom.getLastChat())
-                .lastSender(chatRoom.getLastChat())
+                .lastSender(chatRoom.getLastSender())
                 .updatedAt(chatRoom.getUpdatedAt())
                 .build();
     }
