@@ -45,8 +45,11 @@ public class ChatController {
             return Flux.error(new IllegalStateException("이미 구독 중인 사용자입니다."));
         }
 
-        return sseManager.getOrManageSink(userId)
-                .asFlux();
+        return sseManager.getOrManageSink(userId).asFlux()
+                .doFinally(signalType -> {
+                    log.info("SSE 종료");
+                    sseManager.removeSink(userId);
+                });
     }
 
 }

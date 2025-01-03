@@ -1,6 +1,7 @@
 package bill.chat.service;
 
 import bill.chat.dto.SSEDTO;
+import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
@@ -20,9 +21,16 @@ public class SSEManager {
             Sinks.Many<SSEDTO> sink = Sinks.many()
                     .unicast()
                     .onBackpressureBuffer();
+            ;
+            SSEDTO initialMessage = SSEDTO.builder()
+                    .channelId("system")
+                    .senderId("server")
+                    .content("success")
+                    .unreadCount(0)
+                    .updatedAt(LocalDateTime.now())
+                    .build();
 
-            sink.asFlux()
-                    .doFinally(signalType -> sinks.remove(id));
+            sink.tryEmitNext(initialMessage);
 
             return sink;
         });
@@ -31,5 +39,10 @@ public class SSEManager {
     public boolean doesSinkExist(String userId) {
         Many<SSEDTO> foundSink = sinks.get(userId);
         return foundSink != null && foundSink.currentSubscriberCount() > 0;
+    }
+
+    public void removeSink(String userId) {
+        sinks.get(userId).tryEmitComplete();
+        sinks.remove(userId);
     }
 }
