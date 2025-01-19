@@ -16,6 +16,7 @@ public class ChatRoomResponseDTO {
     public static class getChatInfo {
         String channelId;
         int unreadCount;
+        boolean notification;
         String lastChat;
         String lastSender;
         LocalDateTime updatedAt;

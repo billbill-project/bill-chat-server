@@ -15,6 +15,7 @@ public class ChatServerPayload {
     public static class GetChatListPayload {
         String beforeTimestamp;
         List<String> chatRoomIds;
+        String userId;
     }
 
     @Getter

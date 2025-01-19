@@ -177,7 +177,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                                     // 메세지 보낸 사람 아닌 상대방의 sink 존재 확인
                                     if (!participant.getUserId().equals(senderId) && sseManager.doesSinkExist(participant.getUserId())) {
                                         log.info("sse 보낼 상대 : {}", participant.getUserId());
-                                        SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom);
+                                        SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom, participant);
                                         sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
                                     }
                                 }
