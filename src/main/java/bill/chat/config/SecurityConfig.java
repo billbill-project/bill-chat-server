@@ -14,7 +14,7 @@ public class SecurityConfig {
     public SecurityWebFilterChain securityWebFilterChain(ServerHttpSecurity http) {
         http.csrf(ServerHttpSecurity.CsrfSpec::disable)
                 .authorizeExchange(exchange -> exchange
-                        .pathMatchers("api/**","/ws/**", "/webhook/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/docs/**")
+                        .pathMatchers("api/**","/ws/**", "/internal/v1/**", "/swagger-ui/**", "/v3/api-docs/**", "/swagger-ui.html", "/docs/**")
                         .permitAll()
                         .anyExchange()
                         .authenticated()

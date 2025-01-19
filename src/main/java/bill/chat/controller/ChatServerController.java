@@ -2,8 +2,9 @@ package bill.chat.controller;
 
 import bill.chat.converter.ChatRoomConverter;
 import bill.chat.dto.ChatRoomResponseDTO;
-import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
-import bill.chat.dto.WebhookPayload.GetChatListPayload;
+import bill.chat.dto.ChatServerPayload.CreateChatRoomPayload;
+import bill.chat.dto.ChatServerPayload.GetChatListPayload;
+import bill.chat.dto.ChatServerPayload.GetUnreadCountPayload;
 import bill.chat.service.ChatService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
@@ -15,8 +16,8 @@ import reactor.core.publisher.Mono;
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/webhook")
-public class webhookController {
+@RequestMapping("/internal/v1")
+public class ChatServerController {
     private final ChatService chatService;
 
     @PostMapping("/channel")
@@ -30,5 +31,10 @@ public class webhookController {
         return chatService.getChatList(payload)
                 .collectList()
                 .map(ChatRoomConverter::toGetChatInfoList);
+    }
+
+    @PostMapping("/chat/unreadCount")
+    public Mono<Integer> getUnreadCount(@RequestBody GetUnreadCountPayload payload) {
+        return chatService.getUnreadChatCount(payload);
     }
 }

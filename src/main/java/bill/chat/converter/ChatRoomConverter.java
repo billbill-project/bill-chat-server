@@ -2,7 +2,7 @@ package bill.chat.converter;
 
 import bill.chat.dto.ChatRoomResponseDTO;
 import bill.chat.dto.ChatRoomResponseDTO.getChatInfo;
-import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
+import bill.chat.dto.ChatServerPayload.CreateChatRoomPayload;
 import bill.chat.model.ChatRoom;
 import bill.chat.model.Participant;
 import java.util.Arrays;

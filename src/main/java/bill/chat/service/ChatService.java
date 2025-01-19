@@ -3,8 +3,9 @@ package bill.chat.service;
 import bill.chat.apiPayload.code.status.ErrorStatus;
 import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.converter.ChatRoomConverter;
-import bill.chat.dto.WebhookPayload.CreateChatRoomPayload;
-import bill.chat.dto.WebhookPayload.GetChatListPayload;
+import bill.chat.dto.ChatServerPayload.CreateChatRoomPayload;
+import bill.chat.dto.ChatServerPayload.GetChatListPayload;
+import bill.chat.dto.ChatServerPayload.GetUnreadCountPayload;
 import bill.chat.model.ChatMessage;
 import bill.chat.model.ChatRoom;
 import bill.chat.repository.ChatMessageRepository;
@@ -62,5 +63,9 @@ public class ChatService {
         }
         return chatRoomRepository.findChatRoomsByChatRoomIdsAndBeforeTimestamp(payload.getChatRoomIds(),
                 beforeTimestamp, size);
+    }
+
+    public Mono<Integer> getUnreadChatCount(GetUnreadCountPayload payload) {
+        return chatRoomRepository.calculateSumOfUnreadCountByUserIdAndChannelIds(payload.getUserId(), payload.getChatRoomIds());
     }
 }
