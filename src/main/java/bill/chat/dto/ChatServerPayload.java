@@ -3,7 +3,7 @@ package bill.chat.dto;
 import java.util.List;
 import lombok.Getter;
 
-public class WebhookPayload {
+public class ChatServerPayload {
     @Getter
     public static class CreateChatRoomPayload {
         String channelId;
