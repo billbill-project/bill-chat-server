@@ -26,7 +26,7 @@ public class BillChatInterceptor implements WebFilter {
     private final JWTUtil jwtUtil;
     private static final List<String> EXCLUDED_PATHS = List.of(
             "/ws/",
-            "/webhook/",
+            "/internal/v1/",
             "/swagger-ui/",
             "/v3/api-docs/",
             "/swagger-ui.html",

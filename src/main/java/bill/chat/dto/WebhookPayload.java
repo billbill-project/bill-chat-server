@@ -16,4 +16,10 @@ public class WebhookPayload {
         String beforeTimestamp;
         List<String> chatRoomIds;
     }
+
+    @Getter
+    public static class GetUnreadCountPayload {
+        String userId;
+        List<String> chatRoomIds;
+    }
 }
