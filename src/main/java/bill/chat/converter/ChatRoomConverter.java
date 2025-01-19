@@ -14,11 +14,13 @@ public class ChatRoomConverter {
         Participant owner = Participant.builder()
                 .userId(payload.getOwnerId())
                 .role("owner")
+                .notification(true)
                 .build();
 
         Participant contact = Participant.builder()
                 .userId(payload.getContactId())
                 .role("contact")
+                .notification(true)
                 .build();
 
         List<Participant> participants = Arrays.asList(owner, contact);

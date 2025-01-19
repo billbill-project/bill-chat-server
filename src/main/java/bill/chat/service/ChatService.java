@@ -8,10 +8,12 @@ import bill.chat.dto.ChatServerPayload.GetChatListPayload;
 import bill.chat.dto.ChatServerPayload.GetUnreadCountPayload;
 import bill.chat.model.ChatMessage;
 import bill.chat.model.ChatRoom;
+import bill.chat.model.Participant;
 import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -67,5 +69,21 @@ public class ChatService {
 
     public Mono<Integer> getUnreadChatCount(GetUnreadCountPayload payload) {
         return chatRoomRepository.calculateSumOfUnreadCountByUserIdAndChannelIds(payload.getUserId(), payload.getChatRoomIds());
+    }
+
+    @Transactional
+    public Mono<Void> changeNotificationStatus(String channelId, String userId) {
+        return chatRoomRepository.findByChannelId(channelId)
+                .flatMap(c -> {
+                    List<Participant> participants = c.getParticipants();
+                    for (Participant participant : participants) {
+                        if (participant.getUserId().equals(userId)) {
+                            participant.changeNotification();
+                            break;
+                        }
+                    }
+                    return chatRoomRepository.save(c);
+                })
+                .then();
     }
 }
