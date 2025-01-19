@@ -27,6 +27,7 @@ public class SSEManager {
                     .senderId("server")
                     .content("success")
                     .unreadCount(0)
+                    .notification(false)
                     .updatedAt(LocalDateTime.now())
                     .build();
 

@@ -30,7 +30,7 @@ public class ChatServerController {
     public Mono<ChatRoomResponseDTO.getChatInfoList> getChatList(@RequestBody GetChatListPayload payload) {
         return chatService.getChatList(payload)
                 .collectList()
-                .map(ChatRoomConverter::toGetChatInfoList);
+                .map(c -> ChatRoomConverter.toGetChatInfoList(c, payload.getUserId()));
     }
 
     @PostMapping("/chat/unreadCount")

@@ -14,11 +14,13 @@ public class ChatRoomConverter {
         Participant owner = Participant.builder()
                 .userId(payload.getOwnerId())
                 .role("owner")
+                .notification(true)
                 .build();
 
         Participant contact = Participant.builder()
                 .userId(payload.getContactId())
                 .role("contact")
+                .notification(true)
                 .build();
 
         List<Participant> participants = Arrays.asList(owner, contact);
@@ -29,8 +31,8 @@ public class ChatRoomConverter {
                 .build();
     }
 
-    public static ChatRoomResponseDTO.getChatInfoList toGetChatInfoList(List<ChatRoom> chatRooms) {
-        List<getChatInfo> getChatInfoList = chatRooms.stream().map(ChatRoomConverter::toGetChatInfo)
+    public static ChatRoomResponseDTO.getChatInfoList toGetChatInfoList(List<ChatRoom> chatRooms, String userId) {
+        List<getChatInfo> getChatInfoList = chatRooms.stream().map(c -> toGetChatInfo(c, userId))
                 .collect(Collectors.toList());
 
         return ChatRoomResponseDTO.getChatInfoList.builder()
@@ -38,8 +40,17 @@ public class ChatRoomConverter {
                 .build();
     }
 
-    public static ChatRoomResponseDTO.getChatInfo toGetChatInfo(ChatRoom chatRoom) {
+    public static ChatRoomResponseDTO.getChatInfo toGetChatInfo(ChatRoom chatRoom, String userId) {
+        Participant participant = null;
+        for (Participant p : chatRoom.getParticipants()) {
+            if (p.getUserId().equals(userId)) {
+                participant = p;
+                break;
+            }
+        }
+
         return ChatRoomResponseDTO.getChatInfo.builder()
+                .notification(participant.isNotification())
                 .channelId(chatRoom.getChannelId())
                 .unreadCount(chatRoom.getUnreadCount())
                 .lastChat(chatRoom.getLastChat())
