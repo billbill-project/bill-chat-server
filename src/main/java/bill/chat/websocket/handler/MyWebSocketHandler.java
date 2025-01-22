@@ -17,6 +17,7 @@ import bill.chat.model.Participant;
 import bill.chat.model.enums.SystemType;
 import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
+import bill.chat.service.ChatService;
 import bill.chat.service.SSEManager;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
 import bill.chat.websocket.payload.exception.WebSocketException;
@@ -47,6 +48,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final ChatRoomRepository chatRoomRepository;
     private final ChatMessageRepository chatMessageRepository;
     private final SSEManager sseManager;
+    private final ChatService chatService;
 
     @Override
     public List<String> getSubProtocols() {
@@ -170,15 +172,22 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, chatDTO.getContent(), systemType,
                             chatDTO.getMessageType(), isRead, startedAt, endedAt, price);
 
+                    boolean finalIsRead = isRead;
+                    String finalLastContent = lastContent;
+
                     return chatRoomRepository.save(chatRoom)
                             .doOnSuccess(updatedChatRoom -> {
                                 List<Participant> participants = chatRoom.getParticipants();
                                 for (Participant participant : participants) {
-                                    // 메세지 보낸 사람 아닌 상대방의 sink 존재 확인
-                                    if (!participant.getUserId().equals(senderId) && sseManager.doesSinkExist(participant.getUserId())) {
-                                        log.info("sse 보낼 상대 : {}", participant.getUserId());
-                                        SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom, participant);
-                                        sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
+                                    if (!participant.getUserId().equals(senderId) && !finalIsRead) {
+                                        if (sseManager.doesSinkExist(participant.getUserId())) {
+                                            log.info("sse 보낼 상대 : {}", participant.getUserId());
+                                            SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom, participant);
+                                            sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
+                                        }
+                                        if (!sseManager.doesSinkExist(participant.getUserId()) && participant.isNotification()) {
+                                            chatService.sendPush(participant.getUserId(), senderId, channelId, finalLastContent);
+                                        }
                                     }
                                 }
                             })

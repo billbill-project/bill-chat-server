@@ -73,6 +73,7 @@ jobs:
               -e SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER=${{ secrets.SPRINGDOC_SWAGGER_UI_OPERATIONS_SORTER }} \
               -e SPRINGDOC_API_DOCS_PATH=${{ secrets.SPRINGDOC_API_DOCS_PATH }} \
               -e JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
+              -e API_SERVER_URL=${{ secrets.API_SERVER_URL }} \
               ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
             sudo docker rm $(sudo docker ps --filter 'status=exited' -a -q)
             sudo docker image prune -a -f
