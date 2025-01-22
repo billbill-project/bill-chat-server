@@ -13,11 +13,16 @@ import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
@@ -26,8 +31,19 @@ import reactor.core.publisher.Mono;
 @Transactional(readOnly = true)
 @RequiredArgsConstructor
 public class ChatService {
+    private final WebClient webClient;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
+
+    @Autowired
+    public ChatService(@Value("${api-server.url}") String chatServerUrl,
+                       WebClient.Builder webClientBuilder,
+                       ChatMessageRepository chatMessageRepository,
+                       ChatRoomRepository chatRoomRepository) {
+        this.webClient = webClientBuilder.baseUrl(chatServerUrl).build();
+        this.chatMessageRepository = chatMessageRepository;
+        this.chatRoomRepository = chatRoomRepository;
+    }
 
     public Flux<ChatMessage> getChatMessages(String channelId, String beforeTimestampStr, String userId) {
         int size = 30;
@@ -68,7 +84,8 @@ public class ChatService {
     }
 
     public Mono<Integer> getUnreadChatCount(GetUnreadCountPayload payload) {
-        return chatRoomRepository.calculateSumOfUnreadCountByUserIdAndChannelIds(payload.getUserId(), payload.getChatRoomIds());
+        return chatRoomRepository.calculateSumOfUnreadCountByUserIdAndChannelIds(payload.getUserId(),
+                payload.getChatRoomIds());
     }
 
     @Transactional
@@ -85,5 +102,20 @@ public class ChatService {
                     return chatRoomRepository.save(c);
                 })
                 .then();
+    }
+
+    public void sendPush(String userId, String senderId, String channelId, String lastContent) {
+        Map<String, Object> payload = new HashMap<>();
+        payload.put("userId", userId);
+        payload.put("senderId", senderId);
+        payload.put("channelId", channelId);
+        payload.put("lastContent", lastContent);
+
+        webClient.post()
+                .uri("/push/chat")
+                .bodyValue(payload)
+                .retrieve()
+                .bodyToMono(Void.class)
+                .block();
     }
 }
