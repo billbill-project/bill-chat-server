@@ -3,7 +3,7 @@ name: Java CI/CD
 # 동작 조건 설정 : Pull_request가 closed 됐을경우
 on:
   pull_request:
-    types: [closed] #pull_request closed 됐을 경우
+    types: [ closed ] #pull_request closed 됐을 경우
   workflow_dispatch: # 수동실행도 가능하도록
 
 
@@ -55,7 +55,7 @@ jobs:
           host: ${{ secrets.EC2_SERVER_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_PRIVATE_KEY}}
-          script : |
+          script: |
             sudo docker pull ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
             if [ $(docker ps -a -q -f name=bill-chat) ]; then
               sudo docker stop bill-chat
@@ -74,6 +74,8 @@ jobs:
               -e SPRINGDOC_API_DOCS_PATH=${{ secrets.SPRINGDOC_API_DOCS_PATH }} \
               -e JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
               -e API_SERVER_URL=${{ secrets.API_SERVER_URL }} \
+              -e INTERNAL_CHAT_SECRET=${{ secrets.INTERNAL_CHAT_SECRET }} \
+              -e INTERNAL_API_SECRET=${{ secrets.INTERNAL_API_SECRET }} \
               ${{ secrets.DOCKERHUB_USERNAME }}/bill-chat:latest
             sudo docker rm $(sudo docker ps --filter 'status=exited' -a -q)
             sudo docker image prune -a -f

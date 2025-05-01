@@ -1,4 +1,4 @@
-package bill.chat.config.interceptor;
+package bill.chat.config.filter;
 
 import bill.chat.apiPayload.code.status.ErrorStatus;
 import bill.chat.apiPayload.exception.GeneralException;
@@ -8,7 +8,6 @@ import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
@@ -21,7 +20,7 @@ import java.util.UUID;
 @Slf4j
 @Component
 @RequiredArgsConstructor
-public class BillChatInterceptor implements WebFilter {
+public class UserAuthFilter implements WebFilter {
 
     private final JWTUtil jwtUtil;
     private static final List<String> EXCLUDED_PATHS = List.of(
