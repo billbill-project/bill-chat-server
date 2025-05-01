@@ -34,6 +34,8 @@ public class ChatService {
     private final WebClient webClient;
     private final ChatMessageRepository chatMessageRepository;
     private final ChatRoomRepository chatRoomRepository;
+    @Value("${internal.api-secret}")
+    private String secretKey;
 
     @Autowired
     public ChatService(@Value("${api-server.url}") String chatServerUrl,
@@ -111,11 +113,16 @@ public class ChatService {
         payload.put("channelId", channelId);
         payload.put("lastContent", lastContent);
 
-        webClient.post()
-                .uri("/push/chat")
-                .bodyValue(payload)
-                .retrieve()
-                .bodyToMono(Void.class)
-                .block();
+        try {
+            webClient.post()
+                    .uri("/push/chat")
+                    .bodyValue(payload)
+                    .header("secretKey", secretKey)
+                    .retrieve()
+                    .bodyToMono(Void.class)
+                    .block();
+        } catch (Exception e) {
+            throw new GeneralException(ErrorStatus._BAD_REQUEST);
+        }
     }
 }
