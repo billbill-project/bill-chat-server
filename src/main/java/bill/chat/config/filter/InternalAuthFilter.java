@@ -1,4 +1,4 @@
-package bill.chat.config.interceptor;
+package bill.chat.config.filter;
 
 import bill.chat.apiPayload.code.status.ErrorStatus;
 import bill.chat.apiPayload.exception.GeneralException;
