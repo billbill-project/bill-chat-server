@@ -243,20 +243,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
     private String getChannelId(WebSocketSession session) {
         String query = session.getHandshakeInfo().getUri().getQuery();
-        if (query == null || query.isEmpty()) {
-            throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
-        }
 
-        if (!query.startsWith("channelId=")) {
-            throw new IllegalArgumentException("유효하지 않은 쿼리 파라미터");
-        }
-
-        String channelId = query.substring("channelId=".length());
-        if (channelId.isEmpty()) {
-            throw new IllegalArgumentException("channelId 값이 비어 있음");
-        }
-
-        return channelId;
+        return query.substring("channelId=".length());
     }
-
 }

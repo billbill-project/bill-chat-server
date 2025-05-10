@@ -1,7 +1,8 @@
 package bill.chat.config;
 
-import bill.chat.AuthenticatedWebSocketHandler;
+import bill.chat.websocket.handler.AuthenticatedWebSocketHandler;
 import bill.chat.config.jwt.JWTUtil;
+import bill.chat.repository.ChatRoomRepository;
 import bill.chat.service.CustomWebSocketService;
 import bill.chat.websocket.handler.MyWebSocketHandler;
 
@@ -24,13 +25,14 @@ import org.springframework.web.reactive.socket.server.upgrade.ReactorNettyReques
 @RequiredArgsConstructor
 public class WebSocketConfig {
 
+    private final ChatRoomRepository chatRoomRepository;
     private final MyWebSocketHandler myWebSocketHandler;
     private final JWTUtil jwtUtil;
 
     @Bean
     public HandlerMapping handlerMapping() {
         Map<String, WebSocketHandler> map = new HashMap<>();
-        map.put("/ws/greeting", new AuthenticatedWebSocketHandler(myWebSocketHandler, jwtUtil));
+        map.put("/ws/greeting", new AuthenticatedWebSocketHandler(myWebSocketHandler, jwtUtil, chatRoomRepository));
 
         SimpleUrlHandlerMapping mapping = new SimpleUrlHandlerMapping();
         mapping.setUrlMap(map);
