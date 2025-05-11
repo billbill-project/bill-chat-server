@@ -16,6 +16,7 @@ import org.springframework.web.server.WebFilterChain;
 import reactor.core.publisher.Mono;
 
 import java.util.UUID;
+import reactor.util.context.Context;
 
 @Slf4j
 @Component
@@ -72,19 +73,26 @@ public class UserAuthFilter implements WebFilter {
             return chain.filter(exchange);
         }
 
-        String token = resolveToken(exchange);
-
-        if (token != null && jwtUtil.isValidAccessToken(token)) {
-            String userId = jwtUtil.putUserMDC(jwtUtil.getClaims(token));
-            log.info("UserRole : {}", jwtUtil.getUserRole(token));
-            log.info("REQUEST [{}][{}] : auth by user {}", uuid, requestURI, userId);
-
-            return chain.filter(exchange);
-        }
-
-        log.info("REQUEST [{}][{}] : no auth by user", uuid, requestURI);
-
-        return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
+        return Mono.justOrEmpty(resolveToken(exchange))
+                .flatMap(token -> jwtUtil.isValidAccessTokenReactive(token)
+                        .flatMap(isValid -> {
+                            if (!isValid) {
+                                return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
+                            }
+                            return jwtUtil.getClaimsReactive(token)
+                                    .flatMap(claims -> {
+                                        String userId = claims.getSubject();
+                                        String role = claims.get("role", String.class);
+                                        log.info("UserRole : {}", role);
+                                        log.info("REQUEST [{}][{}] : auth by user {}", uuid, requestURI, userId);
+                                        return chain.filter(exchange)
+                                                .contextWrite(Context.of("userId", userId, "role", role));
+                                    });
+                        }))
+                .onErrorResume(e -> {
+                    log.info("REQUEST [{}][{}]: no auth by user", uuid, requestURI);
+                    return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
+                });
     }
 }
 

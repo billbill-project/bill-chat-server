@@ -13,6 +13,7 @@ import bill.chat.converter.SSEConverter;
 import bill.chat.dto.SSEDTO;
 import bill.chat.model.ChatMessage;
 import bill.chat.dto.ChatDTO;
+import bill.chat.model.ChatRoom;
 import bill.chat.model.Participant;
 import bill.chat.model.enums.SystemType;
 import bill.chat.repository.ChatMessageRepository;
@@ -36,6 +37,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
+import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 @Slf4j
@@ -77,7 +79,6 @@ public class MyWebSocketHandler implements WebSocketHandler {
                             });
                 }))
                 .onErrorResume(e -> {
-                    // validUser에서 발생한 예외 처리
                     if (e instanceof WebSocketException) {
                         return responseHandler.handleError(session, (WebSocketException) e);
                     }
@@ -115,7 +116,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
     private Mono<Void> handleMessage(WebSocketSession session, String channelId, String payload) {
         try {
-            ChatDTO chatDTO = parseChatMessage(payload); // 여기서 JSON 파싱
+            ChatDTO chatDTO = parseChatMessage(payload);
             return processChatMessage(channelId, chatDTO);
         } catch (WebSocketException e) {
             log.error("WebSocketException 발생: {}", e.getMessage());
@@ -132,7 +133,6 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
                 .flatMap(chatRoom -> {
                     log.info("메시지 처리 시작...");
-                    // 메시지 생성
                     boolean isRead = true;
                     SystemType systemType = null;
                     LocalDate startedAt = null;
@@ -140,12 +140,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     Integer price = null;
                     String lastContent = chatDTO.getContent();
 
-                    // 두 명 이상이 session 가지면 읽은 걸로 간주
-                    if (sessions.get(channelId).size() < 2) {
-                        isRead = false;
-                        chatRoom.addUnreadCount();
-
-                    }
+                    isRead = updateToUnread(channelId, chatRoom, isRead);
                     if (chatDTO.getMessageType() == IMAGE) {
                         lastContent = "사진";
                     }
@@ -169,31 +164,70 @@ public class MyWebSocketHandler implements WebSocketHandler {
                     chatRoom.updateSender(chatDTO.getSenderId());
                     chatRoom.updateLastMessage(lastContent);
                     String senderId = chatDTO.getSenderId();
-                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId, chatDTO.getContent(), systemType,
+                    ChatMessage chatMessage = ChatMessageConverter.toChatMessage(channelId, senderId,
+                            chatDTO.getContent(), systemType,
                             chatDTO.getMessageType(), isRead, startedAt, endedAt, price);
 
-                    boolean finalIsRead = isRead;
-                    String finalLastContent = lastContent;
-
-                    return chatRoomRepository.save(chatRoom)
-                            .doOnSuccess(updatedChatRoom -> {
-                                List<Participant> participants = chatRoom.getParticipants();
-                                for (Participant participant : participants) {
-                                    if (!participant.getUserId().equals(senderId) && !finalIsRead) {
-                                        if (sseManager.doesSinkExist(participant.getUserId())) {
-                                            log.info("sse 보낼 상대 : {}", participant.getUserId());
-                                            SSEDTO ssedto = SSEConverter.toSSEDTO(chatRoom, participant);
-                                            sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
-                                        }
-                                        if (!sseManager.doesSinkExist(participant.getUserId()) && participant.isNotification()) {
-                                            chatService.sendPush(participant.getUserId(), senderId, channelId, finalLastContent);
-                                        }
-                                    }
-                                }
-                            })
-                            .then(chatMessageRepository.save(chatMessage))
-                            .flatMap(savedChat -> broadcastMessage(channelId, chatDTO, savedChat));
+                    return saveChatRoomProcess(channelId, chatDTO, chatRoom, senderId, isRead, lastContent,
+                            chatMessage);
                 });
+    }
+
+    private boolean updateToUnread(String channelId, ChatRoom chatRoom, boolean isRead) {
+        // 두 명 이상이 session 가지면 읽은 걸로 간주
+        if (sessions.get(channelId).size() < 2) {
+            isRead = false;
+            chatRoom.addUnreadCount();
+        }
+        return isRead;
+    }
+
+    private Mono<Void> saveChatRoomProcess(String channelId, ChatDTO chatDTO, ChatRoom chatRoom, String senderId,
+                                           boolean isRead, String finalLastContent, ChatMessage chatMessage) {
+        return chatRoomRepository.save(chatRoom)
+                .flatMap(updatedChatRoom -> {
+                    List<Participant> participants = chatRoom.getParticipants();
+                    return Flux.fromIterable(participants)
+                            .filter(participant ->
+                                    !participant.getUserId().equals(senderId) && !isRead
+                            )
+                            .flatMap(participant -> sendSSEAndPush(channelId, updatedChatRoom, participant, senderId,
+                                    finalLastContent))
+                            .then(chatMessageRepository.save(chatMessage))
+                            .flatMap(savedChat -> {
+                                WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
+                                        chatDTO,
+                                        savedChat.getCreatedAt(),
+                                        savedChat.isRead()
+                                );
+                                return broadcastMessage(channelId, successDTO);
+                            });
+                });
+    }
+
+    private Mono<Void> sendSSEAndPush(String channelId, ChatRoom updatedChatRoom, Participant participant,
+                                      String senderId,
+                                      String lastContent) {
+        // SSE 전송 (알림 설정 여부 무관)
+        if (sseManager.doesSinkExist(participant.getUserId())) {
+            log.info("SSE 전송: {}", participant.getUserId());
+            SSEDTO ssedto = SSEConverter.toSSEDTO(updatedChatRoom, participant);
+            sseManager.getOrManageSink(participant.getUserId()).tryEmitNext(ssedto);
+            return Mono.empty();
+        }
+        // Push 전송 (알림 설정된 경우만)
+        else if (participant.isNotification()) {
+            return chatService.sendPush(
+                    participant.getUserId(),
+                    senderId,
+                    channelId,
+                    lastContent
+            ).onErrorResume(e -> {
+                log.error("푸시 전송 실패: {}", e.getMessage());
+                return Mono.empty();
+            });
+        }
+        return Mono.empty();
     }
 
     private Mono<Void> broadcastMessage(String chatRoomId, WebSocketSuccessDTO successDTO) {
@@ -203,34 +237,12 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
         // 각 세션에 성공 메시지 브로드캐스트
         return Mono.when(chatRoomSessions.stream()
-                        .filter(WebSocketSession::isOpen)
-                        .map(session -> responseHandler.handleSuccess(session, successDTO)
-                                .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
-                                .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
-                        )
-                        .toArray(Mono[]::new));
-    }
-
-
-    private Mono<Void> broadcastMessage(String chatRoomId, ChatDTO chatDTO, ChatMessage savedChat) {
-        log.info("broadcastMessage 진입");
-        List<WebSocketSession> chatRoomSessions = sessions.getOrDefault(chatRoomId, List.of());
-        log.info("chatRoomSessions : {}", chatRoomSessions);
-
-        // WebSocketSuccessDTO 변환
-        WebSocketSuccessDTO successDTO = new WebSocketSuccessConverter().toSuccessDTO(
-                chatDTO,
-                savedChat.getCreatedAt(),
-                savedChat.isRead()
-        );
-        // 각 세션에 성공 메시지 브로드캐스트
-        return Mono.when(chatRoomSessions.stream()
-                        .filter(WebSocketSession::isOpen)
-                        .map(session -> responseHandler.handleSuccess(session, successDTO)
-                                .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
-                                .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
-                        )
-                        .toArray(Mono[]::new));
+                .filter(WebSocketSession::isOpen)
+                .map(session -> responseHandler.handleSuccess(session, successDTO)
+                        .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
+                        .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
+                )
+                .toArray(Mono[]::new));
     }
 
     private ChatDTO parseChatMessage(String payload) {
@@ -243,20 +255,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
     private String getChannelId(WebSocketSession session) {
         String query = session.getHandshakeInfo().getUri().getQuery();
-        if (query == null || query.isEmpty()) {
-            throw new IllegalArgumentException("쿼리 파라미터 안 들어옴");
-        }
 
-        if (!query.startsWith("channelId=")) {
-            throw new IllegalArgumentException("유효하지 않은 쿼리 파라미터");
-        }
-
-        String channelId = query.substring("channelId=".length());
-        if (channelId.isEmpty()) {
-            throw new IllegalArgumentException("channelId 값이 비어 있음");
-        }
-
-        return channelId;
+        return query.substring("channelId=".length());
     }
-
 }
