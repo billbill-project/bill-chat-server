@@ -106,23 +106,20 @@ public class ChatService {
                 .then();
     }
 
-    public void sendPush(String userId, String senderId, String channelId, String lastContent) {
+    public Mono<Void> sendPush(String userId, String senderId, String channelId, String lastContent) {
         Map<String, Object> payload = new HashMap<>();
         payload.put("userId", userId);
         payload.put("senderId", senderId);
         payload.put("channelId", channelId);
         payload.put("lastContent", lastContent);
 
-        try {
-            webClient.post()
-                    .uri("/push/chat")
-                    .bodyValue(payload)
-                    .header("secretKey", secretKey)
-                    .retrieve()
-                    .bodyToMono(Void.class)
-                    .block();
-        } catch (Exception e) {
-            throw new GeneralException(ErrorStatus._BAD_REQUEST);
-        }
+        return webClient.post()
+                .uri("/push/chat")
+                .bodyValue(payload)
+                .header("secretKey", secretKey)
+                .retrieve()
+                .bodyToMono(Void.class)
+                .doOnError(e -> log.error("Push 전송 실패: {}", e.getMessage()))
+                .onErrorResume(e -> Mono.empty());
     }
 }
