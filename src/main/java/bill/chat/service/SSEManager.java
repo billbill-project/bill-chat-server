@@ -3,6 +3,7 @@ package bill.chat.service;
 import bill.chat.dto.SSEDTO;
 import java.time.LocalDateTime;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -16,12 +17,15 @@ public class SSEManager {
     private final Map<String, Sinks.Many<SSEDTO>> sinks = new ConcurrentHashMap<>();
 
     public Sinks.Many<SSEDTO> getOrManageSink(String userId) {
-        return sinks.computeIfAbsent(userId, id -> {
-            log.info("getOrManageSink 들어옴");
+        return sinks.compute(userId, (key, existingSink) -> {
+            if (existingSink != null && existingSink.currentSubscriberCount() > 0) {
+                throw new IllegalStateException("이미 구독 중인 사용자입니다.");
+            }
+
             Sinks.Many<SSEDTO> sink = Sinks.many()
                     .unicast()
-                    .onBackpressureBuffer();
-            ;
+                    .onBackpressureBuffer(new ArrayBlockingQueue<>(100));
+
             SSEDTO initialMessage = SSEDTO.builder()
                     .channelId("system")
                     .senderId("server")

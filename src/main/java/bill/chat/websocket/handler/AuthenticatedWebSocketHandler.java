@@ -26,14 +26,14 @@ public class AuthenticatedWebSocketHandler implements WebSocketHandler {
     public Mono<Void> handle(WebSocketSession session) {
         String query = session.getHandshakeInfo().getUri().getQuery();
         if (query == null || query.isEmpty()) {
-            return session.close(new CloseStatus(4002, "MISSING_CHANNEL_ID"));
+            return session.close(new CloseStatus(4002, "WRONG_QUERY"));
         }
         if (!query.startsWith("channelId=")) {
             return session.close(new CloseStatus(4002, "WRONG_QUERY"));
         }
         String channelId = query.substring("channelId=".length());
         if (channelId.isEmpty()) {
-            return session.close(new CloseStatus(4002, "EMPTY_CHANNEL_ID"));
+            return session.close(new CloseStatus(4002, "WRONG_QUERY"));
         }
         return chatRoomRepository.findByChannelId(channelId)
                 .hasElement()
@@ -53,8 +53,16 @@ public class AuthenticatedWebSocketHandler implements WebSocketHandler {
                                     return jwtUtil.getClaimsReactive(token)
                                             .flatMap(claims -> {
                                                 String userId = claims.getSubject();
-                                                session.getAttributes().put("userId", userId);
-                                                return delegate.handle(session);
+                                                return chatRoomRepository.findParticipantByChannelIdAndUserId(channelId,
+                                                                userId)
+                                                        .hasElement()
+                                                        .flatMap(ex -> {
+                                                            if (!ex) {
+                                                                return session.close(new CloseStatus(4004, "INVALID_PARTICIPANT"));
+                                                            }
+                                                            session.getAttributes().put("userId", userId);
+                                                            return delegate.handle(session);
+                                                        });
                                             });
                                 });
                     }

@@ -2,7 +2,6 @@ package bill.chat.config.filter;
 
 import bill.chat.apiPayload.code.status.ErrorStatus;
 import bill.chat.apiPayload.exception.GeneralException;
-import bill.chat.apiPayload.exception.handler.MemberHandler;
 import bill.chat.config.jwt.JWTUtil;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -40,12 +39,12 @@ public class UserAuthFilter implements WebFilter {
             if (StringUtils.hasText(header) && header.startsWith("Bearer ")) {
                 // Check if the header format is correct
                 if (header.length() < 8) {
-                    throw new MemberHandler(ErrorStatus.INVALID_TOKEN);
+                    throw new GeneralException(ErrorStatus.INVALID_TOKEN);
                 }
 
                 String subString = header.substring(7);
                 if (!StringUtils.hasText(subString)) {
-                    throw new MemberHandler(ErrorStatus.INVALID_TOKEN);
+                    throw new GeneralException(ErrorStatus.INVALID_TOKEN);
                 }
 
                 return subString;
@@ -90,6 +89,9 @@ public class UserAuthFilter implements WebFilter {
                                     });
                         }))
                 .onErrorResume(e -> {
+                    if (e instanceof GeneralException) {
+                        return Mono.error(e);
+                    }
                     log.info("REQUEST [{}][{}]: no auth by user", uuid, requestURI);
                     return Mono.error(new GeneralException(ErrorStatus.INVALID_TOKEN));
                 });

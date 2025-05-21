@@ -19,7 +19,9 @@ public enum ErrorStatus implements BaseErrorCode {
     _FORBIDDEN(HttpStatus.FORBIDDEN, "COMMON403", "금지된 요청입니다."),
 
     NOT_PARTICIPANT(HttpStatus.BAD_REQUEST, "CHANNEL4001", "해당 채팅방의 참여자가 아닙니다."),
-    NOT_FOUND_CHANNEL(HttpStatus.BAD_REQUEST, "CHANNEL4002", "존재하지 않는 채팅방입니다.");
+    NOT_FOUND_CHANNEL(HttpStatus.BAD_REQUEST, "CHANNEL4002", "존재하지 않는 채팅방입니다."),
+
+    DUPLICATION_SUBSCRIBE(HttpStatus.BAD_REQUEST, "CHANNEL4003", "SSE 중복 구독 요청입니다.");
 
     private final HttpStatus httpStatus;
     private final String code;
