@@ -4,9 +4,6 @@ import static bill.chat.model.enums.MessageType.IMAGE;
 import static bill.chat.model.enums.MessageType.SYSTEM;
 import static bill.chat.model.enums.SystemType.RESERVATION_REQUEST;
 import static bill.chat.model.enums.SystemType.USER_LEFT;
-import static bill.chat.websocket.payload.code.WebSocketErrorStatus.INVALID_MESSAGE_FORMAT;
-import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_CHANNEL;
-import static bill.chat.websocket.payload.code.WebSocketErrorStatus.UNKNOWN_USER;
 
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.converter.SSEConverter;
@@ -21,7 +18,6 @@ import bill.chat.repository.ChatRoomRepository;
 import bill.chat.service.ChatService;
 import bill.chat.service.SSEManager;
 import bill.chat.websocket.payload.dto.WebSocketSuccessDTO;
-import bill.chat.websocket.payload.exception.WebSocketException;
 import bill.chat.websocket.payload.handler.WebSocketResponseHandler;
 import bill.chat.websocket.payload.handler.WebSocketSuccessConverter;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -35,6 +31,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
+import org.springframework.web.reactive.socket.CloseStatus;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketSession;
 import reactor.core.publisher.Flux;
@@ -64,9 +61,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
         log.info("WebSocket 연결 시작: userId={}, channelId={}, sessionId={}", userId, channelId, session.getId());
 
-        return validUser(channelId, userId)
-                .doOnError(error -> log.error("Valid user check failed: {}", error.getMessage()))
-                .then(Mono.defer(() -> {
+        return Mono.defer(() -> {
                     sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
                     return processRead(channelId, userId)
@@ -77,21 +72,8 @@ public class MyWebSocketHandler implements WebSocketHandler {
                                 log.info("WebSocket 연결 종료: {}, 종료 원인: {}", session.getId(), signalType);
                                 sessions.getOrDefault(channelId, List.of()).remove(session);
                             });
-                }))
-                .onErrorResume(e -> {
-                    if (e instanceof WebSocketException) {
-                        return responseHandler.handleError(session, (WebSocketException) e);
-                    }
-                    return Mono.empty();
-                });
-    }
-
-    private Mono<Void> validUser(String channelId, String userId) {
-        return chatRoomRepository.findByChannelId(channelId)
-                .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_CHANNEL)))
-                .flatMap(chatRoom -> chatRoomRepository.findParticipantByChannelIdAndUserId(channelId, userId)
-                        .switchIfEmpty(Mono.error(new WebSocketException(UNKNOWN_USER))))
-                .then();
+                })
+                .onErrorResume(e -> session.close(new CloseStatus(4999, "UNKNOWN_ERROR")));
     }
 
     private Mono<Void> processRead(String channelId, String userId) {
@@ -118,12 +100,8 @@ public class MyWebSocketHandler implements WebSocketHandler {
         try {
             ChatDTO chatDTO = parseChatMessage(payload);
             return processChatMessage(channelId, chatDTO);
-        } catch (WebSocketException e) {
-            log.error("WebSocketException 발생: {}", e.getMessage());
-            return responseHandler.handleError(session, e);
-        } catch (Exception e) {
-            log.error("예기치 않은 예외 발생: {}", e.getMessage());
-            return Mono.empty();
+        } catch (JsonProcessingException e) {
+            return session.close(new CloseStatus(4005, "MESSAGE_TYPE_ERROR"));
         }
     }
 
@@ -191,7 +169,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
                             .filter(participant ->
                                     !participant.getUserId().equals(senderId) && !isRead
                             )
-                            .flatMap(participant -> sendSSEAndPush(channelId, updatedChatRoom, participant, senderId,
+                                    .flatMap(participant -> sendSSEAndPush(channelId, updatedChatRoom, participant, senderId,
                                     finalLastContent))
                             .then(chatMessageRepository.save(chatMessage))
                             .flatMap(savedChat -> {
@@ -245,12 +223,8 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .toArray(Mono[]::new));
     }
 
-    private ChatDTO parseChatMessage(String payload) {
-        try {
-            return objectMapper.readValue(payload, ChatDTO.class);
-        } catch (JsonProcessingException e) {
-            throw new WebSocketException(INVALID_MESSAGE_FORMAT);
-        }
+    private ChatDTO parseChatMessage(String payload) throws JsonProcessingException {
+        return objectMapper.readValue(payload, ChatDTO.class);
     }
 
     private String getChannelId(WebSocketSession session) {
