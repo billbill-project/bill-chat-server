@@ -1,6 +1,8 @@
 package bill.chat.controller;
 
 import bill.chat.apiPayload.ApiResponse;
+import bill.chat.apiPayload.code.status.ErrorStatus;
+import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.dto.SSEDTO;
@@ -43,15 +45,13 @@ public class ChatController {
     public Flux<SSEDTO> subscribeSSE() {
         return Flux.deferContextual(ctx -> {
             String userId = ctx.get("userId");
-            if (sseManager.doesSinkExist(userId)) {
-                log.warn("이미 구독 중인 사용자: {}", userId);
-                return Flux.error(new IllegalStateException("이미 구독 중인 사용자입니다."));
+            try {
+                return sseManager.getOrManageSink(userId).asFlux()
+                        .doFinally(signal -> sseManager.removeSink(userId));
+            } catch (IllegalStateException e) {
+                log.warn("중복 구독 시도: {}", userId);
+                return Flux.error(new GeneralException(ErrorStatus.DUPLICATION_SUBSCRIBE));
             }
-            return sseManager.getOrManageSink(userId).asFlux()
-                    .doFinally(signalType -> {
-                        log.info("SSE 종료");
-                        sseManager.removeSink(userId);
-                    });
         });
     }
 
