@@ -153,7 +153,10 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
     private boolean updateToUnread(String channelId, ChatRoom chatRoom, boolean isRead) {
         // 두 명 이상이 session 가지면 읽은 걸로 간주
-        if (sessions.get(channelId).size() < 2) {
+        long count = sessions.get(channelId).stream()
+                .filter(WebSocketSession::isOpen)
+                .count();
+        if (count < 2) {
             isRead = false;
             chatRoom.addUnreadCount();
         }
