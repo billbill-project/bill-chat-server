@@ -7,6 +7,7 @@ import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.dto.SSEDTO;
 import bill.chat.service.ChatService;
+import bill.chat.service.DistributedSSEManager;
 import bill.chat.service.SSEManager;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
@@ -20,6 +21,7 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
+import reactor.core.publisher.Sinks;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,7 +29,7 @@ import reactor.core.publisher.Mono;
 @Slf4j
 public class ChatController {
     private final ChatService chatService;
-    private final SSEManager sseManager;
+    private final DistributedSSEManager distributedSSEManager;
 
     @GetMapping("/messages")
     public Mono<ApiResponse<List<getChatMessage>>> getChatMessages(@RequestParam String channelId,
@@ -45,13 +47,22 @@ public class ChatController {
     public Flux<SSEDTO> subscribeSSE() {
         return Flux.deferContextual(ctx -> {
             String userId = ctx.get("userId");
-            try {
-                return sseManager.getOrManageSink(userId).asFlux()
-                        .doFinally(signal -> sseManager.removeSink(userId));
-            } catch (IllegalStateException e) {
-                log.warn("중복 구독 시도: {}", userId);
-                return Flux.error(new GeneralException(ErrorStatus.DUPLICATION_SUBSCRIBE));
-            }
+
+            return distributedSSEManager.createAndRegisterSink(userId)
+                    .flatMapMany(sink -> sink.asFlux()
+                            .doFinally(signal -> {
+                                log.info("SSE connection cleanup for user: {}", userId);
+                                distributedSSEManager.removeSink(userId);
+                            })
+                    )
+                    .onErrorResume(e -> {
+                        if (e instanceof IllegalStateException) {
+                            log.warn("중복 구독 시도: {}", userId);
+                            return Flux.error(new GeneralException(ErrorStatus.DUPLICATION_SUBSCRIBE));
+                        }
+                        log.error("SSE 구독 중 오류 발생", e);
+                        return Flux.error(e);
+                    });
         });
     }
 

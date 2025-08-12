@@ -32,6 +32,10 @@ dependencies {
 	implementation 'org.springframework.boot:spring-boot-starter-webflux'
 	implementation 'org.springframework.boot:spring-boot-starter-security'
 	implementation 'org.springframework.boot:spring-boot-starter-data-mongodb-reactive'
+	implementation 'org.springframework.boot:spring-boot-starter-data-redis-reactive'
+
+    // Message Broker
+	implementation 'org.springframework.boot:spring-boot-starter-amqp'
 
 	// Swagger (SpringDoc)
 	implementation 'org.springdoc:springdoc-openapi-starter-webflux-ui:2.0.2'
@@ -47,6 +51,7 @@ dependencies {
 
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
+	testImplementation 'org.springframework.amqp:spring-rabbit-test'
 }
 
 tasks.named('test') {

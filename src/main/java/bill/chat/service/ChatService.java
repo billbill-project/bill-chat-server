@@ -13,9 +13,7 @@ import bill.chat.repository.ChatMessageRepository;
 import bill.chat.repository.ChatRoomRepository;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -106,20 +104,26 @@ public class ChatService {
                 .then();
     }
 
-    public Mono<Void> sendPush(String userId, String senderId, String channelId, String lastContent) {
-        Map<String, Object> payload = new HashMap<>();
-        payload.put("userId", userId);
-        payload.put("senderId", senderId);
-        payload.put("channelId", channelId);
-        payload.put("lastContent", lastContent);
+    @Transactional
+    public Mono<Void> markMessagesAsRead(String channelId, String userId) {
+        log.info("채팅방 읽음 처리 시작: channelId={}, userId={}", channelId, userId);
 
-        return webClient.post()
-                .uri("/push/chat")
-                .bodyValue(payload)
-                .header("secretKey", secretKey)
-                .retrieve()
-                .bodyToMono(Void.class)
-                .doOnError(e -> log.error("Push 전송 실패: {}", e.getMessage()))
-                .onErrorResume(e -> Mono.empty());
+        return chatMessageRepository.findUnreadMessages(channelId, userId)
+                .flatMap(chatMessage -> {
+                    chatMessage.changeRead();
+                    return chatMessageRepository.save(chatMessage);
+                })
+                .count()
+                .flatMap(count -> {
+                    if (count > 0) {
+                        log.info("{}개의 메시지 읽음 처리.", count);
+                        return chatRoomRepository.findByChannelId(channelId)
+                                .flatMap(chatRoom -> {
+                                    chatRoom.resetUnreadCount();
+                                    return chatRoomRepository.save(chatRoom);
+                                }).then();
+                    }
+                    return Mono.empty();
+                });
     }
 }

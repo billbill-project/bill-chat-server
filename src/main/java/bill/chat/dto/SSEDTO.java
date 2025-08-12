@@ -15,4 +15,5 @@ public class SSEDTO {
     int unreadCount;
     @JsonFormat(shape = JsonFormat.Shape.STRING, pattern = "yyyy-MM-dd'T'HH:mm:ss.SSS")
     LocalDateTime updatedAt;
+    String targetUserId;
 }

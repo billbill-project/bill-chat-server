@@ -4,9 +4,12 @@ import bill.chat.model.enums.MessageType;
 import bill.chat.model.enums.SystemType;
 import java.time.LocalDate;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
+@Setter
 public class ChatDTO {
+    private String channelId;
     private MessageType messageType;
     private SystemType systemType;
     private String senderId;
