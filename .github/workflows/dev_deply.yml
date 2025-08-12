@@ -64,6 +64,10 @@ jobs:
             
             sudo docker tag jainefer/bill-chat:latest bill-chat
             sudo docker run --name bill-chat -d -p 80:8080 \
+              -e SPRING_RABBITMQ_HOST=${{ secrets.SPRING_RABBITMQ_HOST }} \
+              -e SPRING_RABBITMQ_PORT=${{ secrets.SPRING_RABBITMQ_PORT }} \
+              -e SPRING_RABBITMQ_USERNAME=${{ secrets.SPRING_RABBITMQ_USERNAME }} \
+              -e SPRING_RABBITMQ_PASSWORD=${{ secrets.SPRING_RABBITMQ_PASSWORD }} \
               -e SPRING_DATA_MONGODB_URI=${{ secrets.SPRING_DATA_MONGODB_URI }} \
               -e SPRING_DATA_MONGODB_DATABASE=${{ secrets.SPRING_DATA_MONGODB_DATABASE }} \
               -e SPRING_MAIN_WEB_APPLICATION_TYPE=${{secrets.SPRING_MAIN_WEB_APPLICATION_TYPE }} \
