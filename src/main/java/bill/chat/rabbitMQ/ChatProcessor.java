@@ -39,9 +39,9 @@ public class ChatProcessor {
     public void processAndSaveChatMessage(ChatDTO chatDTO) {
         String channelId = chatDTO.getChannelId();
         chatRoomRepository.findByChannelId(channelId)
-                .flatMap(chatRoom -> distributedSessionManager.getActiveSessionCount(channelId)
-                        .flatMap(activeSessionCount -> {
-                            boolean isRead = activeSessionCount >= 2;
+                .flatMap(chatRoom -> distributedSessionManager.getActiveUserCount(channelId)
+                        .flatMap(activeUserCount -> {
+                            boolean isRead = activeUserCount >= 2;
                             if (!isRead) {
                                 chatRoom.addUnreadCount();
                             }
