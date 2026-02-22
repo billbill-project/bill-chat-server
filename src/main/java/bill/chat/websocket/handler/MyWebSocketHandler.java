@@ -84,8 +84,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
 
         if ("ping".equals(payload)) {
             return distributedSessionManager.refreshSession(session.getId()).then();
-        }
-        else {
+        } else {
             try {
                 ChatDTO chatDTO = parseChatMessage(payload);
                 chatDTO.setChannelId(channelId);
@@ -105,8 +104,20 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .filter(WebSocketSession::isOpen)
                 .map(session -> responseHandler.handleSuccess(session, successDTO)
                         .doOnSuccess(unused -> log.info("메시지 전송 성공: {}", session.getId()))
-                        .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e))
-                )
+                        .doOnError(e -> log.error("WebSocket 메시지 전송 실패: {}", e.getMessage(), e)))
+                .toArray(Mono[]::new));
+    }
+
+    public Mono<Void> sendErrorToLocalSession(String channelId, String senderId,
+            bill.chat.websocket.payload.dto.WebSocketErrorDTO errorDTO) {
+        log.info("로컬 에러 전송 시도: channelId={}, senderId={}", channelId, senderId);
+        List<WebSocketSession> localChannelSessions = sessions.getOrDefault(channelId, List.of());
+        return Mono.when(localChannelSessions.stream()
+                .filter(WebSocketSession::isOpen)
+                .filter(session -> senderId.equals(session.getAttributes().get("userId")))
+                .map(session -> responseHandler.handleError(session, errorDTO)
+                        .doOnSuccess(unused -> log.info("에러 메시지 전송 성공: {}", session.getId()))
+                        .doOnError(e -> log.error("WebSocket 에러 메시지 전송 실패: {}", e.getMessage(), e)))
                 .toArray(Mono[]::new));
     }
 

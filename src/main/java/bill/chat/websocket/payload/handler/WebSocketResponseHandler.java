@@ -23,9 +23,15 @@ public class WebSocketResponseHandler {
                 .doOnError(e -> log.error("성공 메시지 전송 중 오류 발생: {}", e.getMessage(), e));
     }
 
+    public Mono<Void> handleError(WebSocketSession session,
+            bill.chat.websocket.payload.dto.WebSocketErrorDTO errorDTO) {
+        return sendResponse(session, errorDTO)
+                .doOnError(e -> log.error("에러 메시지 전송 중 오류 발생: {}", e.getMessage(), e));
+    }
+
     private <T> Mono<Void> sendResponse(WebSocketSession session, T dto) {
         try {
-            String payload = objectMapper.writeValueAsString(dto);//json으로 변환
+            String payload = objectMapper.writeValueAsString(dto);// json으로 변환
             return session.send(Mono.just(session.textMessage(payload)));
         } catch (Exception e) {
             log.error("웹소켓 응답 처리 실패 : {}", e.getMessage());

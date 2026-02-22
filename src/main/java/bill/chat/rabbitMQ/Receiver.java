@@ -22,6 +22,12 @@ public class Receiver {
                 .subscribe(null, e -> log.error("로컬 세션 브로드캐스트 중 오류 발생", e));
     }
 
+    @RabbitListener(queues = "#{chatErrorQueue.name}")
+    public void consumeAndBroadcastErrorMessage(bill.chat.websocket.payload.dto.WebSocketErrorDTO errorDTO) {
+        myWebSocketHandler.sendErrorToLocalSession(errorDTO.getChannelId(), errorDTO.getSenderId(), errorDTO)
+                .subscribe(null, e -> log.error("로컬 에러 세션 브로드캐스트 중 오류 발생", e));
+    }
+
     @RabbitListener(queues = "#{sseQueue.name}")
     public void consumeSSEMessage(SSEDTO ssedto) {
         log.info("SSE 큐에서 메시지 수신 성공 Target: {}", ssedto.getTargetUserId());

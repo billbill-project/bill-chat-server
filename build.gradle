@@ -52,6 +52,7 @@ dependencies {
 	// Test
 	testImplementation 'org.springframework.boot:spring-boot-starter-test'
 	testImplementation 'org.springframework.amqp:spring-rabbit-test'
+	testImplementation 'io.projectreactor:reactor-test'
 }
 
 tasks.named('test') {
