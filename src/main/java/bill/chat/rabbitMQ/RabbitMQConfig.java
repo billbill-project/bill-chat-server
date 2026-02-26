@@ -1,5 +1,6 @@
 package bill.chat.rabbitMQ;
 
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
 import org.springframework.amqp.core.DirectExchange;
@@ -18,9 +19,16 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.retry.RetryCallback;
+import org.springframework.retry.RetryContext;
+import org.springframework.retry.RetryListener;
+import org.springframework.retry.backoff.ExponentialBackOffPolicy;
 import org.springframework.retry.interceptor.RetryOperationsInterceptor;
+import org.springframework.retry.policy.SimpleRetryPolicy;
+import org.springframework.retry.support.RetryTemplate;
 
 @Configuration
+@Slf4j
 public class RabbitMQConfig {
     @Value("${spring.rabbitmq.host}")
     private String host;
@@ -113,7 +121,7 @@ public class RabbitMQConfig {
 
     /**
      * RabbitMQ Listener 재시도 정책
-     * - 최대 3회 재시도 (초기 시도 포함 총 4회 시도)
+     * - 최대 3회 시도 (초기 시도 포함)
      * - 1초, 2초, 3초 간격으로 재시도 (Exponential Backoff)
      * - 모두 실패하면 Recoverer가 에러 이벤트를 발행하고 큐에서 제거
      */
@@ -121,9 +129,29 @@ public class RabbitMQConfig {
     public SimpleRabbitListenerContainerFactory rabbitListenerContainerFactory(
             ConnectionFactory connectionFactory, MessageConverter messageConverter, RabbitTemplate rabbitTemplate) {
 
+        RetryTemplate retryTemplate = new RetryTemplate();
+
+        SimpleRetryPolicy retryPolicy = new SimpleRetryPolicy();
+        retryPolicy.setMaxAttempts(3);
+        retryTemplate.setRetryPolicy(retryPolicy);
+
+        ExponentialBackOffPolicy backOffPolicy = new ExponentialBackOffPolicy();
+        backOffPolicy.setInitialInterval(1000);
+        backOffPolicy.setMultiplier(2.0);
+        backOffPolicy.setMaxInterval(3000);
+        retryTemplate.setBackOffPolicy(backOffPolicy);
+
+        retryTemplate.registerListener(new RetryListener() {
+            @Override
+            public <T, E extends Throwable> void onError(RetryContext context, RetryCallback<T, E> callback,
+                    Throwable throwable) {
+                log.warn("채팅 메시지 처리 재시도: attempt={}/3, error={}", context.getRetryCount(),
+                        throwable.getMessage());
+            }
+        });
+
         RetryOperationsInterceptor retryInterceptor = RetryInterceptorBuilder.stateless()
-                .maxAttempts(3) // 최대 3회 재시도
-                .backOffOptions(1000, 2.0, 3000) // 초기 1초, 배수 2.0, 최대 3초
+                .retryOperations(retryTemplate)
                 .recoverer((message, cause) -> {
                     try {
                         bill.chat.dto.ChatDTO failedChat = (bill.chat.dto.ChatDTO) messageConverter
@@ -137,12 +165,10 @@ public class RabbitMQConfig {
                                 .errorMessage("메시지 전송에 실패했습니다.")
                                 .build();
                         rabbitTemplate.convertAndSend("chat.error.exchange", "", errorDTO);
-                        org.slf4j.LoggerFactory.getLogger(RabbitMQConfig.class)
-                                .error("메시지 3회 처리 실패, 에러 이벤트 발행됨: channelId={}, senderId={}", failedChat.getChannelId(),
-                                        failedChat.getSenderId());
+                        log.error("메시지 3회 처리 실패, 에러 이벤트 발행됨: channelId={}, senderId={}",
+                                failedChat.getChannelId(), failedChat.getSenderId());
                     } catch (Exception e) {
-                        org.slf4j.LoggerFactory.getLogger(RabbitMQConfig.class)
-                                .error("Recoverer 처리 중 에러 발생", e);
+                        log.error("Recoverer 처리 중 에러 발생", e);
                     }
                 })
                 .build();
