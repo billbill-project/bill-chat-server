@@ -13,6 +13,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicLong;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -36,7 +37,8 @@ public class MyWebSocketHandler implements WebSocketHandler {
     private final Producer producer;
     private final ChatService chatService;
 
-    private static final Duration PING_INTERVAL = Duration.ofSeconds(30);
+    private static final Duration PING_INTERVAL = Duration.ofSeconds(20);
+    private static final Duration PONG_TIMEOUT = Duration.ofSeconds(45);
 
     @Override
     public List<String> getSubProtocols() {
@@ -48,14 +50,21 @@ public class MyWebSocketHandler implements WebSocketHandler {
         String channelId = getChannelId(session);
         String userId = (String) session.getAttributes().get("userId");
         String sessionId = session.getId();
+        AtomicLong lastSeenAt = new AtomicLong(System.currentTimeMillis());
 
         log.info("WebSocket 연결 시작: userId={}, channelId={}, sessionId={}", userId, channelId, sessionId);
 
         sessions.computeIfAbsent(channelId, id -> new CopyOnWriteArrayList<>()).add(session);
 
         Disposable heartbeatDisposable = Flux.interval(PING_INTERVAL)
-                .flatMap(tick -> session.send(Mono.just(
-                        new WebSocketMessage(WebSocketMessage.Type.PING, session.bufferFactory().wrap("".getBytes())))))
+                .flatMap(tick -> session.send(Mono.just(session.textMessage("ping"))))
+                .doOnNext(unused -> {
+                    long idleMillis = System.currentTimeMillis() - lastSeenAt.get();
+                    if (idleMillis > PONG_TIMEOUT.toMillis() && session.isOpen()) {
+                        log.warn("PONG/메시지 미수신으로 세션 종료: sessionId={}, idleMillis={}", sessionId, idleMillis);
+                        session.close(new CloseStatus(4008, "HEARTBEAT_TIMEOUT")).subscribe();
+                    }
+                })
                 .doOnError(e -> log.error("하트비트 PING 전송 실패", e))
                 .subscribeOn(Schedulers.single())
                 .subscribe();
@@ -63,10 +72,7 @@ public class MyWebSocketHandler implements WebSocketHandler {
         return distributedSessionManager.addSessionToChannel(channelId, sessionId, userId)
                 .then(chatService.markMessagesAsRead(channelId, userId))
                 .then(session.receive()
-                        .doOnNext(message -> {
-                            distributedSessionManager.refreshSession(sessionId).subscribe(); // TTL 갱신
-                        })
-                        .flatMap(message -> handleAndSendToMQ(session, channelId, message.getPayloadAsText()))
+                        .flatMap(message -> handleIncomingMessage(session, channelId, sessionId, lastSeenAt, message))
                         .then())
                 .doFinally(signalType -> {
                     log.info("WebSocket 연결 종료: {}, 종료 원인: {}", sessionId, signalType);
@@ -77,23 +83,42 @@ public class MyWebSocketHandler implements WebSocketHandler {
                 .onErrorResume(e -> session.close(new CloseStatus(4999, "UNKNOWN_ERROR")));
     }
 
-    private Mono<Void> handleAndSendToMQ(WebSocketSession session, String channelId, String payload) {
+    private Mono<Void> handleIncomingMessage(WebSocketSession session, String channelId, String sessionId,
+            AtomicLong lastSeenAt, WebSocketMessage message) {
+        if (message.getType() != WebSocketMessage.Type.TEXT) {
+            lastSeenAt.set(System.currentTimeMillis());
+            return distributedSessionManager.refreshSession(sessionId).then();
+        }
+
+        String payload = message.getPayloadAsText();
         if (payload == null || payload.isBlank()) {
             return Mono.empty();
         }
 
-        if ("ping".equals(payload)) {
-            return distributedSessionManager.refreshSession(session.getId()).then();
-        } else {
-            try {
-                ChatDTO chatDTO = parseChatMessage(payload);
-                chatDTO.setChannelId(channelId);
-                return producer.sendChatMessage(chatDTO);
-            } catch (JsonProcessingException e) {
-                log.error("메시지 파싱 오류: {}", payload, e);
-                return session.close(new CloseStatus(4005, "MESSAGE_TYPE_ERROR"));
-            }
+        if ("pong".equals(payload)) {
+            lastSeenAt.set(System.currentTimeMillis());
+            return distributedSessionManager.refreshSession(sessionId).then();
         }
+
+        if ("ping".equals(payload)) {
+            lastSeenAt.set(System.currentTimeMillis());
+            return distributedSessionManager.refreshSession(sessionId)
+                    .then(session.send(Mono.just(session.textMessage("pong"))))
+                    .then();
+        }
+
+        lastSeenAt.set(System.currentTimeMillis());
+        return distributedSessionManager.refreshSession(sessionId)
+                .then(Mono.defer(() -> {
+                    try {
+                        ChatDTO chatDTO = parseChatMessage(payload);
+                        chatDTO.setChannelId(channelId);
+                        return producer.sendChatMessage(chatDTO);
+                    } catch (JsonProcessingException e) {
+                        log.error("메시지 파싱 오류: {}", payload, e);
+                        return session.close(new CloseStatus(4005, "MESSAGE_TYPE_ERROR"));
+                    }
+                }));
     }
 
     public Mono<Void> broadcastToLocalSessions(String channelId, WebSocketSuccessDTO successDTO) {

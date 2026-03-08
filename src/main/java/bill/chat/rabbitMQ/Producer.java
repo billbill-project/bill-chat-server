@@ -19,34 +19,34 @@ public class Producer {
 
     public Mono<Void> sendChatMessage(ChatDTO chatDTO) {
         return Mono.fromRunnable(() -> {
-                    try {
-                        rabbitTemplate.convertAndSend("chat.processing.exchange", "chat.process", chatDTO);
-                        log.info("채팅 메시지 MQ 전송 성공: channelId={}", chatDTO.getChannelId());
-                    } catch (Exception e) {
-                        log.error("채팅 메시지 MQ 전송 실패: channelId={}, error={}", chatDTO.getChannelId(), e.getMessage());
-                        throw new RuntimeException("MQ 전송 실패", e);
-                    }
-                })
+            try {
+                rabbitTemplate.convertAndSend("chat.processing.exchange", "chat.process", chatDTO);
+                log.info("채팅 메시지 MQ 전송 성공: channelId={}", chatDTO.getChannelId());
+            } catch (Exception e) {
+                log.error("채팅 메시지 MQ 전송 실패: channelId={}, error={}", chatDTO.getChannelId(), e.getMessage());
+                throw new RuntimeException("MQ 전송 실패", e);
+            }
+        })
                 .subscribeOn(Schedulers.boundedElastic())
                 .then();
     }
 
-    public Mono<Void> broadcastProcessedMessage(WebSocketSuccessDTO successDTO) {
+    public Mono<Void> sendWebSocketMessageToServer(String serverId, WebSocketSuccessDTO successDTO) {
         return Mono.fromRunnable(() -> {
             try {
-                rabbitTemplate.convertAndSend("chat.exchange", "", successDTO);
-                log.info("메시지 브로드캐스트 성공: channelId={}", successDTO.getChannelId());
+                rabbitTemplate.convertAndSend("chat.ws.exchange", "ws.server." + serverId, successDTO);
+                log.info("WS 메시지 서버 라우팅 성공: channelId={}, serverId={}", successDTO.getChannelId(), serverId);
             } catch (Exception e) {
-                throw new RuntimeException("메세지 브로드캐스트 실패", e);
+                throw new RuntimeException("WS 메시지 라우팅 실패", e);
             }
         }).subscribeOn(Schedulers.boundedElastic()).then();
     }
 
-    public Mono<Void> sendSSEMessage(SSEDTO ssedto) {
+    public Mono<Void> sendSSEMessageToServer(String serverId, SSEDTO ssedto) {
         return Mono.fromRunnable(() -> {
             try {
-                rabbitTemplate.convertAndSend("sse.exchange", ssedto.getTargetUserId(), ssedto);
-                log.info("SSE 메시지 MQ 전송 성공: targetUserId={}", ssedto.getTargetUserId());
+                rabbitTemplate.convertAndSend("chat.sse.exchange", "sse.server." + serverId, ssedto);
+                log.info("SSE 메시지 서버 라우팅 성공: targetUserId={}, serverId={}", ssedto.getTargetUserId(), serverId);
             } catch (Exception e) {
                 log.error("SSE 메시지 MQ 전송 실패: targetUserId={}, error={}", ssedto.getTargetUserId(), e.getMessage());
                 throw new RuntimeException("MQ 전송 실패", e);
@@ -57,7 +57,7 @@ public class Producer {
     public Mono<Void> sendPushMessage(PushDTO pushdto) {
         return Mono.fromRunnable(() -> {
             try {
-                rabbitTemplate.convertAndSend("push.exchange", pushdto.getUserId(), pushdto);
+                rabbitTemplate.convertAndSend("push.exchange", "push", pushdto);
                 log.info("Push 메시지 MQ 전송 성공: targetUserId={}", pushdto.getUserId());
             } catch (Exception e) {
                 log.error("Push 메시지 MQ 전송 실패: targetUserId={}, error={}", pushdto.getUserId(), e.getMessage());
