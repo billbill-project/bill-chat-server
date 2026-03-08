@@ -1,14 +1,12 @@
 package bill.chat.controller;
 
 import bill.chat.apiPayload.ApiResponse;
-import bill.chat.apiPayload.code.status.ErrorStatus;
-import bill.chat.apiPayload.exception.GeneralException;
 import bill.chat.converter.ChatMessageConverter;
 import bill.chat.dto.ChatMessageResponseDTO.getChatMessage;
 import bill.chat.dto.SSEDTO;
 import bill.chat.service.ChatService;
 import bill.chat.service.DistributedSSEManager;
-import bill.chat.service.SSEManager;
+import java.time.Duration;
 import java.util.List;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -21,7 +19,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.publisher.Sinks;
 
 @RestController
 @RequiredArgsConstructor
@@ -49,17 +46,24 @@ public class ChatController {
             String userId = ctx.get("userId");
 
             return distributedSSEManager.createAndRegisterSink(userId)
-                    .flatMapMany(sink -> sink.asFlux()
-                            .doFinally(signal -> {
-                                log.info("SSE connection cleanup for user: {}", userId);
-                                distributedSSEManager.removeSink(userId);
-                            })
-                    )
+                    .flatMapMany(registration -> {
+                        Flux<SSEDTO> heartbeat = Flux.interval(Duration.ofSeconds(15))
+                                .flatMap(tick -> distributedSSEManager
+                                        .refreshConnection(userId, registration.connectionId())
+                                        .then(Mono.empty()));
+
+                        return registration.sink().asFlux()
+                                .mergeWith(heartbeat)
+                                .doOnSubscribe(subscription -> distributedSSEManager
+                                        .refreshConnection(userId, registration.connectionId())
+                                        .subscribe())
+                                .doFinally(signal -> {
+                                    log.info("SSE connection cleanup for user: {}, connId={}", userId,
+                                            registration.connectionId());
+                                    distributedSSEManager.removeSink(userId, registration.connectionId());
+                                });
+                    })
                     .onErrorResume(e -> {
-                        if (e instanceof IllegalStateException) {
-                            log.warn("중복 구독 시도: {}", userId);
-                            return Flux.error(new GeneralException(ErrorStatus.DUPLICATION_SUBSCRIBE));
-                        }
                         log.error("SSE 구독 중 오류 발생", e);
                         return Flux.error(e);
                     });

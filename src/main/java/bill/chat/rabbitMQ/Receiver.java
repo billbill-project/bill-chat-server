@@ -30,21 +30,22 @@ public class Receiver {
 
     @RabbitListener(queues = "#{sseQueue.name}")
     public void consumeSSEMessage(SSEDTO ssedto) {
-        log.info("SSE 큐에서 메시지 수신 성공 Target: {}", ssedto.getTargetUserId());
+        String targetUserId = ssedto.getTargetUserId();
+        log.info("SSE 큐에서 메시지 수신 성공 Target: {}", targetUserId);
         try {
-            boolean isPresent = distributedSSEManager.hasLocalSSEConnection(ssedto.getTargetUserId());
-            log.info("로컬 SSE 연결 확인: Target={}, isPresent={}", ssedto.getTargetUserId(), isPresent);
+            boolean isPresent = distributedSSEManager.hasLocalSSEConnection(targetUserId);
+            log.info("로컬 SSE 연결 확인: Target={}, isPresent={}", targetUserId, isPresent);
 
             if (isPresent) {
                 log.info("로컬 SSE 연결 존재. 메시지 전송 시도...");
                 boolean success = distributedSSEManager.sendToLocalSSE(ssedto);
                 if (!success) {
-                    log.warn("로컬 SSE 전송 실패: targetUserId={}", ssedto.getTargetUserId());
+                    log.warn("로컬 SSE 전송 실패: targetUserId={}", targetUserId);
                 } else {
                     log.info("로컬 SSE 메시지 전송 성공");
                 }
             } else {
-                log.info("이 서버에 해당 사용자의 로컬 SSE 연결이 없음. Target User: {}", ssedto.getTargetUserId());
+                log.info("이 서버에 해당 사용자의 로컬 SSE 연결이 없음. Target User: {}", targetUserId);
             }
         } catch (Exception e) {
             log.error("SSE 메시지 수신 처리 중 예외 발생", e);

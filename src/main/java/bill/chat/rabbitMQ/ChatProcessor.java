@@ -78,7 +78,7 @@ public class ChatProcessor {
                                                     savedMessage.getCreatedAt(),
                                                     savedMessage.isRead());
 
-                                            return mqProducer.broadcastProcessedMessage(successDTO)
+                                            return dispatchWebSocketMessage(chatRoom.getChannelId(), successDTO)
                                                     .then(sendNotificationsToOtherUsers(chatRoom, chatDTO,
                                                             savedMessage));
                                         });
@@ -93,7 +93,7 @@ public class ChatProcessor {
 
     private Mono<Void> sendNotificationsToOtherUsers(ChatRoom chatRoom, ChatDTO chatDTO, ChatMessage savedMessage) {
         String senderId = chatDTO.getSenderId();
-        String channelId = chatRoom.getChannelId(); // 👈 channelId를 가져옵니다.
+        String channelId = chatRoom.getChannelId();
 
         return Flux.fromIterable(chatRoom.getParticipants())
                 .filter(participant -> !participant.getUserId().equals(senderId))
@@ -108,21 +108,22 @@ public class ChatProcessor {
                                     return Mono.empty();
                                 }
 
-                                return distributedSSEManager.hasAnySSEConnection(targetUserId)
-                                        .flatMap(hasSSE -> {
-                                            if (hasSSE) {
-                                                log.info("Target user {} is online via SSE. Sending SSE message.",
-                                                        targetUserId);
-                                                return mqProducer.sendSSEMessage(SSEDTO.builder()
-                                                        .targetUserId(targetUserId)
-                                                        .channelId(chatRoom.getChannelId())
-                                                        .senderId(chatDTO.getSenderId())
-                                                        .content(savedMessage.getContent())
-                                                        .unreadCount(chatRoom.getUnreadCount())
-                                                        .notification(participant.isNotification())
-                                                        .updatedAt(chatRoom.getUpdatedAt())
-                                                        .build());
-                                            } else if (participant.isNotification()) {
+                                return distributedSSEManager.findConnectedServerId(targetUserId)
+                                        .flatMap(serverId -> {
+                                            log.info("Target user {} is online via SSE. Sending SSE message to server {}.",
+                                                    targetUserId, serverId);
+                                            return mqProducer.sendSSEMessageToServer(serverId, SSEDTO.builder()
+                                                    .targetUserId(targetUserId)
+                                                    .channelId(chatRoom.getChannelId())
+                                                    .senderId(chatDTO.getSenderId())
+                                                    .content(savedMessage.getContent())
+                                                    .unreadCount(chatRoom.getUnreadCount())
+                                                    .notification(participant.isNotification())
+                                                    .updatedAt(chatRoom.getUpdatedAt())
+                                                    .build());
+                                        })
+                                        .switchIfEmpty(Mono.defer(() -> {
+                                            if (participant.isNotification()) {
                                                 log.info("Target user {} is offline. Sending Push message.",
                                                         targetUserId);
                                                 return mqProducer.sendPushMessage(PushDTO.builder()
@@ -133,8 +134,15 @@ public class ChatProcessor {
                                                         .build());
                                             }
                                             return Mono.empty();
-                                        });
+                                        }));
                             });
                 }).then();
+    }
+
+    private Mono<Void> dispatchWebSocketMessage(String channelId, WebSocketSuccessDTO successDTO) {
+        return distributedSessionManager.getActiveServerIds(channelId)
+                .flatMapMany(Flux::fromIterable)
+                .flatMap(serverId -> mqProducer.sendWebSocketMessageToServer(serverId, successDTO))
+                .then();
     }
 }

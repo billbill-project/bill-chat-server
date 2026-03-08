@@ -1,5 +1,7 @@
 package bill.chat.rabbitMQ;
 
+import bill.chat.service.ServerInstanceIdProvider;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.amqp.core.Binding;
 import org.springframework.amqp.core.BindingBuilder;
@@ -7,7 +9,7 @@ import org.springframework.amqp.core.DirectExchange;
 import org.springframework.amqp.core.FanoutExchange;
 import org.springframework.amqp.core.Queue;
 import org.springframework.amqp.core.AnonymousQueue;
-import org.springframework.amqp.core.TopicExchange;
+
 import org.springframework.amqp.rabbit.config.RetryInterceptorBuilder;
 import org.springframework.amqp.rabbit.config.SimpleRabbitListenerContainerFactory;
 import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
@@ -29,6 +31,7 @@ import org.springframework.retry.support.RetryTemplate;
 
 @Configuration
 @Slf4j
+@RequiredArgsConstructor
 public class RabbitMQConfig {
     @Value("${spring.rabbitmq.host}")
     private String host;
@@ -39,22 +42,24 @@ public class RabbitMQConfig {
     @Value("${spring.rabbitmq.port}")
     private int port;
 
-    // 채팅 메시지 브로드캐스트용
+    private final ServerInstanceIdProvider serverInstanceIdProvider;
+
+    // 채팅 메시지 전송용 (서버 타겟 라우팅)
     @Bean
-    public FanoutExchange chatExchange() {
-        return new FanoutExchange("chat.exchange");
+    public DirectExchange chatExchange() {
+        return new DirectExchange("chat.ws.exchange");
     }
 
-    // SSE 메시지 전송용
+    // SSE 메시지 전송용 (서버 타겟 라우팅)
     @Bean
-    public TopicExchange sseExchange() {
-        return new TopicExchange("sse.exchange");
+    public DirectExchange sseExchange() {
+        return new DirectExchange("chat.sse.exchange");
     }
 
     // Push 알림 메시지 전송용
     @Bean
-    public TopicExchange pushExchange() {
-        return new TopicExchange("push.exchange");
+    public DirectExchange pushExchange() {
+        return new DirectExchange("push.exchange");
     }
 
     // 메세지 저장용
@@ -65,12 +70,14 @@ public class RabbitMQConfig {
 
     @Bean
     public Queue chatQueue() {
-        return new AnonymousQueue();
+        String serverId = serverInstanceIdProvider.getServerInstanceId();
+        return new Queue("chat.ws.server." + serverId + ".q", true);
     }
 
     @Bean
     public Queue sseQueue() {
-        return new AnonymousQueue();
+        String serverId = serverInstanceIdProvider.getServerInstanceId();
+        return new Queue("chat.sse.server." + serverId + ".q", true);
     }
 
     @Bean
@@ -89,18 +96,20 @@ public class RabbitMQConfig {
     }
 
     @Bean
-    public Binding chatQueueBinding(@Qualifier("chatQueue") Queue queue, FanoutExchange chatExchange) {
-        return BindingBuilder.bind(queue).to(chatExchange);
+    public Binding chatQueueBinding(@Qualifier("chatQueue") Queue queue, DirectExchange chatExchange) {
+        String serverId = serverInstanceIdProvider.getServerInstanceId();
+        return BindingBuilder.bind(queue).to(chatExchange).with("ws.server." + serverId);
     }
 
     @Bean
-    public Binding sseQueueBinding(@Qualifier("sseQueue") Queue queue, TopicExchange sseExchange) {
-        return BindingBuilder.bind(queue).to(sseExchange).with("#");
+    public Binding sseQueueBinding(@Qualifier("sseQueue") Queue queue, DirectExchange sseExchange) {
+        String serverId = serverInstanceIdProvider.getServerInstanceId();
+        return BindingBuilder.bind(queue).to(sseExchange).with("sse.server." + serverId);
     }
 
     @Bean
-    public Binding pushQueueBinding(@Qualifier("pushQueue") Queue queue, TopicExchange pushExchange) {
-        return BindingBuilder.bind(queue).to(pushExchange).with("#");
+    public Binding pushQueueBinding(@Qualifier("pushQueue") Queue queue, DirectExchange pushExchange) {
+        return BindingBuilder.bind(queue).to(pushExchange).with("push");
     }
 
     // 에러 메시지 브로드캐스트용
